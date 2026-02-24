@@ -31,7 +31,7 @@ class GoldTradingOneTradePerDayCrew:
             max_rpm=None,
             max_execution_time=None,
             llm=LLM(
-                model="openai/gpt-4o",
+                model="gemini/gemini-3-pro",
                 temperature=0.7,
             ),
         )
@@ -50,7 +50,7 @@ class GoldTradingOneTradePerDayCrew:
             max_rpm=None,
             max_execution_time=None,
             llm=LLM(
-                model="openai/gpt-4o",
+                model="gemini/gemini-3-pro",
                 temperature=0.7,
             ),
         )
@@ -69,7 +69,7 @@ class GoldTradingOneTradePerDayCrew:
             max_rpm=None,
             max_execution_time=None,
             llm=LLM(
-                model="openai/gpt-4o",
+                model="gemini/gemini-2.5-flash",
                 temperature=0.7,
             ),
         )
@@ -112,7 +112,7 @@ class GoldTradingOneTradePerDayCrew:
             tasks=self.tasks,  # Automatically created by the @task decorator
             process=Process.sequential,
             verbose=True,
-            chat_llm=LLM(model="openai/gpt-4o-mini"),
+            chat_llm=LLM(model="gemini/gemini-3-pro"),
         )
 
 
