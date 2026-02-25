@@ -1,0 +1,10 @@
+per_trade_risk_pct: 0.0025
+daily_soft_lock_pct: 0.0075
+daily_hard_lock_pct: 0.015
+daily_loss_hard_lock_pct: -0.015
+max_entries_per_day: 8
+cooldown_after_close_sec: 180
+max_consecutive_losses: 3
+max_spread: 0.02
+intent_ttl_seconds: 45
+no_new_entries_after: "15:30"

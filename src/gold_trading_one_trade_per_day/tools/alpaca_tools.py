@@ -1,82 +1,189 @@
-import os
-from crewai.tools import BaseTool
-from typing import Optional
-import pandas as pd
-from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockBarsRequest
-from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
-from alpaca.data.enums import DataFeed
-from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest
-from alpaca.trading.enums import OrderSide, TimeInForce
+from __future__ import annotations
 
-# Environment variables for Alpaca
-ALPACA_API_KEY = os.getenv("ALPACA_API_KEY", "your_alpaca_api_key_here")
-ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY", "your_alpaca_secret_key_here")
-ALPACA_PAPER = os.getenv("ALPACA_PAPER", "True").lower() == "true"
+import json
+import os
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+import pandas as pd
+from alpaca.data.enums import DataFeed
+from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+from alpaca.trading.client import TradingClient
+from crewai.tools import BaseTool
+from pydantic import BaseModel, Field
+
+
+def _env(name: str, default: str = "") -> str:
+    return os.getenv(name, default).strip()
+
+
+def has_real_credentials() -> bool:
+    key = _env("ALPACA_API_KEY")
+    secret = _env("ALPACA_SECRET_KEY")
+    return bool(key and secret and key != "your_alpaca_api_key_here")
+
+
+def is_paper_mode() -> bool:
+    return _env("ALPACA_PAPER", "true").lower() == "true"
+
+
+def get_data_client() -> StockHistoricalDataClient | None:
+    if not has_real_credentials():
+        return None
+    return StockHistoricalDataClient(_env("ALPACA_API_KEY"), _env("ALPACA_SECRET_KEY"))
+
+
+def get_trading_client() -> TradingClient | None:
+    if not has_real_credentials():
+        return None
+    return TradingClient(_env("ALPACA_API_KEY"), _env("ALPACA_SECRET_KEY"), paper=is_paper_mode())
+
+
+def mock_bars(symbol: str = "GLD", periods: int = 120) -> pd.DataFrame:
+    idx = pd.date_range(end=datetime.now(tz=timezone.utc), periods=periods, freq="1min")
+    base = 200.0
+    prices = [base]
+    for i in range(1, periods):
+        drift = 0.01 if i % 15 else 0.08
+        prices.append(prices[-1] + drift)
+    close = pd.Series(prices, index=idx)
+    open_ = close.shift(1).fillna(close.iloc[0])
+    high = pd.concat([open_, close], axis=1).max(axis=1) + 0.05
+    low = pd.concat([open_, close], axis=1).min(axis=1) - 0.05
+    volume = pd.Series([10000 + (25000 if i % 20 == 0 else 0) for i in range(periods)], index=idx)
+    return pd.DataFrame({"open": open_, "high": high, "low": low, "close": close, "volume": volume})
+
+
+def fetch_recent_bars(
+    symbol: str = "GLD",
+    timeframe: TimeFrame | None = None,
+    lookback_minutes: int = 180,
+    allow_mock: bool = True,
+) -> pd.DataFrame:
+    client = get_data_client()
+    if client is None:
+        if not allow_mock:
+            raise RuntimeError("alpaca_data_client_unavailable")
+        return mock_bars(symbol=symbol)
+
+    tf = timeframe or TimeFrame(1, TimeFrameUnit.Minute)
+    end_dt = datetime.now(timezone.utc) - timedelta(minutes=16)
+    start_dt = end_dt - timedelta(minutes=lookback_minutes)
+
+    request = StockBarsRequest(
+        symbol_or_symbols=symbol,
+        timeframe=tf,
+        start=start_dt,
+        end=end_dt,
+        feed=DataFeed.IEX,
+    )
+    try:
+        bars = client.get_stock_bars(request)
+        df = bars.df
+        if isinstance(df.index, pd.MultiIndex):
+            df = df.reset_index().set_index("timestamp")
+        return df[["open", "high", "low", "close", "volume"]].copy()
+    except Exception:
+        if not allow_mock:
+            raise
+        return mock_bars(symbol=symbol)
+
+
+def fetch_latest_quote(symbol: str = "GLD", allow_mock: bool = True) -> tuple[float, float]:
+    client = get_data_client()
+    if client is None:
+        if not allow_mock:
+            raise RuntimeError("alpaca_data_client_unavailable")
+        return 200.00, 200.01
+
+    req = StockLatestQuoteRequest(symbol_or_symbols=symbol, feed=DataFeed.IEX)
+    try:
+        quotes = client.get_stock_latest_quote(req)
+        quote = quotes[symbol]
+        return float(quote.bid_price), float(quote.ask_price)
+    except Exception:
+        if not allow_mock:
+            raise
+        return 200.00, 200.01
+
+
+def fetch_macro_proxy_returns(allow_mock: bool = True) -> dict[str, float]:
+    proxies = ["SPY", "VXX", "UUP", "TLT"]
+    out: dict[str, float] = {}
+    for symbol in proxies:
+        bars = fetch_recent_bars(symbol=symbol, lookback_minutes=30, allow_mock=allow_mock)
+        if len(bars) < 2:
+            out[symbol] = 0.0
+            continue
+        prev = float(bars.iloc[-2]["close"])
+        last = float(bars.iloc[-1]["close"])
+        out[symbol] = ((last - prev) / prev) if prev else 0.0
+    return out
+
+
+def fetch_account_equity(allow_mock: bool = True) -> float:
+    client = get_trading_client()
+    if client is None:
+        if not allow_mock:
+            raise RuntimeError("alpaca_trading_client_unavailable")
+        return 100_000.0
+
+    try:
+        account = client.get_account()
+        equity = account.equity or account.portfolio_value or "0"
+        return float(equity)
+    except Exception:
+        if not allow_mock:
+            raise
+        return 100_000.0
+
+
+class AlpacaDataToolInput(BaseModel):
+    symbol: str = Field(default="GLD", description="Ticker symbol for analysis.")
+
 
 class AlpacaDataTool(BaseTool):
-    name: str = "Alpaca Market Data Tool"
-    description: str = "Fetches the latest 15-minute candlestick data for Gold (GLD) from Alpaca. Note: Alpaca uses GLD ETF as a proxy for Gold."
+    name: str = "Alpaca Market Snapshot Tool"
+    description: str = (
+        "Returns a compact market snapshot with latest price, quote spread, volume spike, "
+        "and macro proxies for event-triggered GLD analysis."
+    )
+    args_schema = AlpacaDataToolInput
 
     def _run(self, symbol: str = "GLD") -> str:
-        if ALPACA_API_KEY == "your_alpaca_api_key_here":
-            return f"Mock Data: {symbol} 15m Chart. Current Price: 202.50. Recent trend: Bullish. Market Structure: Break of Structure observed at 200.00. Liquidity grab detected at 198.00 level. (Please set ALPACA_API_KEY for real data)"
-        
-        try:
-            # Initialize Alpaca Data client
-            client = StockHistoricalDataClient(ALPACA_API_KEY, ALPACA_SECRET_KEY)
-            
-            # Request parameters
-            from datetime import datetime, timedelta
-            # To avoid the "subscription does not permit querying recent SIP data" error
-            # we subtract 16 minutes from the current time because the free tier provides
-            # 15-minute delayed data for the SIP feed. No need to query the current minute.
-            end_dt = datetime.now() - timedelta(minutes=16) 
-            start_dt = end_dt - timedelta(days=5) # get last 5 days
-            
-            request_params = StockBarsRequest(
-                symbol_or_symbols=symbol,
-                timeframe=TimeFrame(15, TimeFrameUnit.Minute), # 15-Minute candles
-                start=start_dt,
-                end=end_dt,
-                feed=DataFeed.IEX # Explicitly use free IEX feed to bypass SIP error
-            )
-            
-            # Get bars
-            bars = client.get_stock_bars(request_params)
-            df = bars.df
-            return df.tail(30).to_string() # Returns latest 30 candles (7.5 hours of data)
+        bars = fetch_recent_bars(symbol=symbol, lookback_minutes=60)
+        bid, ask = fetch_latest_quote(symbol=symbol)
+        macro = fetch_macro_proxy_returns()
 
-        except Exception as e:
-            return f"Error fetching Alpaca data: {str(e)}"
+        last = bars.iloc[-1]
+        avg_volume = float(bars["volume"].tail(20).mean())
+        volume_spike = float(last["volume"]) / max(avg_volume, 1.0)
+        payload: dict[str, Any] = {
+            "symbol": symbol,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "last_price": float(last["close"]),
+            "bid": bid,
+            "ask": ask,
+            "spread": max(ask - bid, 0.0),
+            "volume": float(last["volume"]),
+            "avg_volume_20": avg_volume,
+            "volume_spike_ratio": volume_spike,
+            "macro_proxies": macro,
+        }
+        return json.dumps(payload)
+
 
 class AlpacaExecutionTool(BaseTool):
-    name: str = "Alpaca Execution Tool"
-    description: str = "Executes a trade on Alpaca with specified entry, stop-loss, and take-profit."
+    name: str = "Deterministic Execution Guard"
+    description: str = (
+        "Execution is blocked from direct LLM tool-calls. "
+        "Orders must be routed through deterministic execution_service."
+    )
 
-    def _run(self, action: str, symbol: str = "GLD", entry: float = 0.0, sl: float = 0.0, tp: float = 0.0, qty: float = 1.0) -> str:
-        if ALPACA_API_KEY == "your_alpaca_api_key_here":
-            return f"MOCK EXECUTION SUCCESSFUL: {action} {qty} shares of {symbol} at {entry}. SL: {sl}, TP: {tp}. (Please set ALPACA_API_KEY for real execution)"
-
-        try:
-            trading_client = TradingClient(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=ALPACA_PAPER)
-            
-            # Create a market order
-            side = OrderSide.BUY if action.upper() == "BUY" else OrderSide.SELL
-            
-            # Alpaca takes a limit order for advanced stop loss/take profit, but for simplicity we place a market order with attached bracket
-            order_data = MarketOrderRequest(
-                symbol=symbol,
-                qty=qty,
-                side=side,
-                time_in_force=TimeInForce.GTC,
-                # Bracket orders can be added here using take_profit and stop_loss parameters if needed
-            )
-            
-            # Execute order
-            order = trading_client.submit_order(order_data)
-            
-            return f"ALPACA EXECUTION SUCCESSFUL: Order ID {order.id} for {qty} shares of {symbol}."
-        except Exception as e:
-            return f"Error executing Alpaca trade: {str(e)}"
+    def _run(self, *args, **kwargs) -> str:
+        return (
+            "Direct execution denied. Use deterministic execution_service.py with "
+            "validated ExecutionCommand and risk approval."
+        )

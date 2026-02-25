@@ -1,0 +1,7 @@
+# UTC timestamps for high-impact macro releases.
+# The engine blocks new entries in +/- MACRO_EVENT_BLOCK_MINUTES around each timestamp.
+events:
+  - label: FOMC Rate Decision
+    timestamp_utc: "2026-03-18T18:00:00+00:00"
+  - label: US CPI
+    timestamp_utc: "2026-03-12T12:30:00+00:00"

@@ -1,7 +1,7 @@
 [project]
 name = "gold_trading_one_trade_per_day"
 version = "0.1.0"
-description = "gold_trading_one_trade_per_day using crewAI"
+description = "Event-driven GLD multi-agent scalping system using CrewAI"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = ">=3.10,<3.14"
 dependencies = [
@@ -14,10 +14,14 @@ dependencies = [
 [project.scripts]
 gold_trading_one_trade_per_day = "gold_trading_one_trade_per_day.main:run"
 run_crew = "gold_trading_one_trade_per_day.main:run"
+run_shadow = "gold_trading_one_trade_per_day.main:run_shadow"
+run_paper = "gold_trading_one_trade_per_day.main:run_paper"
+run_live = "gold_trading_one_trade_per_day.main:run_live"
+reconcile = "gold_trading_one_trade_per_day.main:reconcile"
+run_with_trigger = "gold_trading_one_trade_per_day.main:run_with_trigger"
 train = "gold_trading_one_trade_per_day.main:train"
 replay = "gold_trading_one_trade_per_day.main:replay"
 test = "gold_trading_one_trade_per_day.main:test"
-run_with_trigger = "gold_trading_one_trade_per_day.main:run_with_trigger"
 
 [build-system]
 requires = ["hatchling"]

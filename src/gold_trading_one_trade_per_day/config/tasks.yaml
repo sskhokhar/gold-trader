@@ -1,37 +1,32 @@
 ---
-analyze_gld_15m_liquidity_grabs:
-  description: 'Analyze current GLD 15-minute chart data to identify liquidity
-    grab opportunities. Check for market structure breaks, stop hunt patterns, and
-    institutional order flow signals. Provide detailed analysis including: entry level,
-    market bias (long/short), confluence factors, and current market conditions. Only
-    recommend setups with high probability and clear liquidity grab patterns.'
-  expected_output: 'Detailed market analysis report with: 1) Current GLD market
-    bias, 2) Specific entry price level, 3) Direction (long/short), 4) Liquidity grab
-    evidence, 5) Confluence factors supporting the setup, 6) Current 15m chart structure
-    analysis. Format as structured data for strategy validation.'
-  agent: gold_market_analyst
-validate_setup_and_calculate_risk_parameters:
-  description: 'Review the analyst''s GLD setup recommendation and enforce strict
-    trading rules. CRITICAL: Check if the daily_trade_executed flag is FALSE - if TRUE, immediately
-    REJECT and stop all activity. If FALSE, validate the setup meets criteria: clear
-    liquidity grab pattern, reasonable entry level, proper market structure. Calculate
-    exact: 1) Stop-loss level, 2) Take-profit at 1:2 risk-reward ratio, 3) Position
-    size, 4) Risk amount. Only approve if setup meets all criteria.'
-  expected_output: 'Risk management decision: APPROVED or REJECTED. If APPROVED, provide
-    exact trading parameters: Entry Price, Stop Loss, Take Profit (1:2 R:R), Position
-    Size, Total Risk. If REJECTED, provide specific reasons. Include final confirmation
-    that the daily_trade_executed flag is FALSE and this will be the ONLY trade for the day.'
-  agent: risk_management_strategist
+analyze_market_sentiment:
+  description: >-
+    You are called only after a deterministic event trigger has fired for GLD.
+    Input includes a feature snapshot and macro proxy returns.
+    Return only a JSON object matching MarketSentimentReport schema with:
+    report_id, symbol, generated_at, regime, greed_score, sentiment_score, rationale.
+    Rules:
+    - Keep rationale concise and concrete.
+    - sentiment_score must be in [-1, 1].
+    - greed_score must be in [0, 100].
+  expected_output: >-
+    Strict JSON for MarketSentimentReport. No markdown. No extra keys.
+  agent: market_sentiment_analyst
+
+compose_strategy_intent:
+  description: >-
+    Create one StrategyIntent from feature snapshot + MarketSentimentReport context.
+    Return only strict JSON matching StrategyIntent schema with:
+    intent_id, symbol, side, entry_type, entry_price, sl, tp, qty_hint,
+    confidence, regime, generated_at, expires_at, invalidation_reason, cancel_after_sec.
+    Rules:
+    - Use symbol GLD.
+    - expires_at should be within 45 seconds of generated_at.
+    - For BUY: sl < entry_price < tp.
+    - For SELL: tp < entry_price < sl.
+    - cancel_after_sec must be 30.
+  expected_output: >-
+    Strict JSON for StrategyIntent. No markdown. No extra keys.
+  agent: strategy_composer
   context:
-  - analyze_gld_15m_liquidity_grabs
-execute_single_daily_trade:
-  description: 'Execute the SINGLE approved GLD trade using the exact parameters
-    from risk management. CRITICAL PROTOCOL: 1) Only execute if previous task shows
-    APPROVED, 2) Use exact entry, stop-loss, and take-profit levels, 3) Immediately
-    after execution, set the daily_trade_executed flag to TRUE, 4) Confirm trade execution
-    details, 5) PERMANENTLY halt all trading activity. This is the final action -
-    no more trades allowed today regardless of outcome.'
-  expected_output: 'A JSON formatted report containing: "status": "Executed" or "Not_Executed", "entry_price": float, "stop_loss": float, "take_profit": float, "position_size": float, "profit_loss": string, "trade_id": string, "lesson": string. Final message: DAILY TRADING LIMIT REACHED - SYSTEM HALTED.'
-  agent: trade_executioner
-  context:
-  - validate_setup_and_calculate_risk_parameters
+    - analyze_market_sentiment
