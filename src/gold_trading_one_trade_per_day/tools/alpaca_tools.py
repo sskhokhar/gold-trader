@@ -4,7 +4,7 @@ from typing import Optional
 import pandas as pd
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
-from alpaca.data.timeframe import TimeFrame
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.data.enums import DataFeed
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest
@@ -37,7 +37,7 @@ class AlpacaDataTool(BaseTool):
             
             request_params = StockBarsRequest(
                 symbol_or_symbols=symbol,
-                timeframe=TimeFrame.Minute, # Fallback to Minute
+                timeframe=TimeFrame(15, TimeFrameUnit.Minute), # 15-Minute candles
                 start=start_dt,
                 end=end_dt,
                 feed=DataFeed.IEX # Explicitly use free IEX feed to bypass SIP error
@@ -46,7 +46,7 @@ class AlpacaDataTool(BaseTool):
             # Get bars
             bars = client.get_stock_bars(request_params)
             df = bars.df
-            return df.tail(15).to_string() # Returns latest bars
+            return df.tail(30).to_string() # Returns latest 30 candles (7.5 hours of data)
 
         except Exception as e:
             return f"Error fetching Alpaca data: {str(e)}"
