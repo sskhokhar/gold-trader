@@ -40,9 +40,13 @@ def run():
     }
     result = GoldTradingOneTradePerDayCrew().crew().kickoff(inputs=inputs)
     
-    # After kickoff, if the execution was successful, we set the lock
-    # Note: In a more robust system, we would check the 'result' for execution status
-    set_daily_trade_lock()
+    # Check if a trade was actually executed before applying the lock
+    result_str = str(result)
+    if '"status": "Executed"' in result_str or "'status': 'Executed'" in result_str:
+        set_daily_trade_lock()
+        print("Trade executed successfully. Daily lock set.")
+    else:
+        print("No trade executed. Lock not set. Ready to shadow trade again.")
 
 
 def train():
