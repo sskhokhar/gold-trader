@@ -28,14 +28,18 @@ class AlpacaDataTool(BaseTool):
             
             # Request parameters
             from datetime import datetime, timedelta
-            end_dt = datetime.now()
+            # To avoid the "subscription does not permit querying recent SIP data" error
+            # we subtract 16 minutes from the current time because the free tier provides
+            # 15-minute delayed data for the SIP feed. No need to query the current minute.
+            end_dt = datetime.now() - timedelta(minutes=16) 
             start_dt = end_dt - timedelta(days=5) # get last 5 days
             
             request_params = StockBarsRequest(
                 symbol_or_symbols=symbol,
-                timeframe=TimeFrame.Minute, # Fallback to Minute if 15 Min is not directly standard in some accounts, but let's use 15Min if we construct it
+                timeframe=TimeFrame.Minute, # Fallback to Minute
                 start=start_dt,
                 end=end_dt
+                # feed can also be defined if necessary, but 16 minute delay usually bypasses SIP error
             )
             
             # Get bars
