@@ -77,9 +77,9 @@ class GoldTradingOneTradePerDayCrew:
 
     
     @task
-    def analyze_xau_usd_15m_liquidity_grabs(self) -> Task:
+    def analyze_gld_15m_liquidity_grabs(self) -> Task:
         return Task(
-            config=self.tasks_config["analyze_xau_usd_15m_liquidity_grabs"],
+            config=self.tasks_config["analyze_gld_15m_liquidity_grabs"],
             markdown=False,
             
             
