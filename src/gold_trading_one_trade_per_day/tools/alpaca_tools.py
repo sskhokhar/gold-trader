@@ -5,6 +5,7 @@ import pandas as pd
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
+from alpaca.data.enums import DataFeed
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
@@ -38,8 +39,8 @@ class AlpacaDataTool(BaseTool):
                 symbol_or_symbols=symbol,
                 timeframe=TimeFrame.Minute, # Fallback to Minute
                 start=start_dt,
-                end=end_dt
-                # feed can also be defined if necessary, but 16 minute delay usually bypasses SIP error
+                end=end_dt,
+                feed=DataFeed.IEX # Explicitly use free IEX feed to bypass SIP error
             )
             
             # Get bars
