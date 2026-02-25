@@ -1,17 +1,17 @@
 ---
-analyze_xau_usd_15m_liquidity_grabs:
-  description: 'Analyze current XAU/USD 15-minute chart data to identify liquidity
+analyze_gld_15m_liquidity_grabs:
+  description: 'Analyze current GLD 15-minute chart data to identify liquidity
     grab opportunities. Check for market structure breaks, stop hunt patterns, and
     institutional order flow signals. Provide detailed analysis including: entry level,
     market bias (long/short), confluence factors, and current market conditions. Only
     recommend setups with high probability and clear liquidity grab patterns.'
-  expected_output: 'Detailed market analysis report with: 1) Current XAU/USD market
+  expected_output: 'Detailed market analysis report with: 1) Current GLD market
     bias, 2) Specific entry price level, 3) Direction (long/short), 4) Liquidity grab
     evidence, 5) Confluence factors supporting the setup, 6) Current 15m chart structure
     analysis. Format as structured data for strategy validation.'
   agent: gold_market_analyst
 validate_setup_and_calculate_risk_parameters:
-  description: 'Review the analyst''s XAU/USD setup recommendation and enforce strict
+  description: 'Review the analyst''s GLD setup recommendation and enforce strict
     trading rules. CRITICAL: Check if the daily_trade_executed flag is FALSE - if TRUE, immediately
     REJECT and stop all activity. If FALSE, validate the setup meets criteria: clear
     liquidity grab pattern, reasonable entry level, proper market structure. Calculate
@@ -23,9 +23,9 @@ validate_setup_and_calculate_risk_parameters:
     that the daily_trade_executed flag is FALSE and this will be the ONLY trade for the day.'
   agent: risk_management_strategist
   context:
-  - analyze_xau_usd_15m_liquidity_grabs
+  - analyze_gld_15m_liquidity_grabs
 execute_single_daily_trade:
-  description: 'Execute the SINGLE approved XAU/USD trade using the exact parameters
+  description: 'Execute the SINGLE approved GLD trade using the exact parameters
     from risk management. CRITICAL PROTOCOL: 1) Only execute if previous task shows
     APPROVED, 2) Use exact entry, stop-loss, and take-profit levels, 3) Immediately
     after execution, set the daily_trade_executed flag to TRUE, 4) Confirm trade execution
