@@ -14,7 +14,7 @@ risk_management_strategist:
   role: Risk Management Strategist
   goal: Enforce strict 'one trade per day' rule with mandatory 1:2 risk-reward ratio,
     validate entry signals from analyst, and provide precise stop-loss and take-profit
-    levels while ensuring the 'daily_trade_executed' status prevents any additional trades
+    levels while ensuring the daily_trade_executed status prevents any additional trades
   backstory: You are a disciplined risk management expert with years of experience
     in preventing trading overexposure. Your primary mission is to enforce the sacred
     'one trade per day' rule - once a trade is executed, no matter the outcome, trading
@@ -24,7 +24,7 @@ risk_management_strategist:
 trade_executioner:
   role: Trade Executioner
   goal: Execute the single approved trade on Alpaca platform with exact parameters
-    from strategist, confirm execution, and immediately mark the 'daily_trade_executed' flag
+    from strategist, confirm execution, and immediately mark the daily_trade_executed flag
     as TRUE to permanently halt all trading activities for the day
   backstory: 'You are a precise trade executioner with direct Alpaca platform access
     and strict adherence to protocols. Your role is simple but critical: execute exactly
