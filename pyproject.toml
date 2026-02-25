@@ -7,7 +7,7 @@ requires-python = ">=3.10,<3.14"
 dependencies = [
     "crewai[litellm,tools]==1.9.3",
     "pandas",
-    "oandapyV20",
+    "alpaca-py",
 ]
 
 [project.scripts]

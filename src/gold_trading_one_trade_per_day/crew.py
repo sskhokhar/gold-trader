@@ -6,7 +6,7 @@ from crewai.project import CrewBase, agent, crew, task
 from crewai_tools import (
 	ScrapeWebsiteTool
 )
-from gold_trading_one_trade_per_day.tools.oanda_tools import OANDADataTool, OANDAExecutionTool
+from gold_trading_one_trade_per_day.tools.alpaca_tools import AlpacaDataTool, AlpacaExecutionTool
 
 
 
@@ -22,7 +22,7 @@ class GoldTradingOneTradePerDayCrew:
         
         return Agent(
             config=self.agents_config["gold_market_analyst"],
-            tools=[OANDADataTool()],
+            tools=[AlpacaDataTool()],
             reasoning=False,
             max_reasoning_attempts=None,
             inject_date=True,
@@ -60,7 +60,7 @@ class GoldTradingOneTradePerDayCrew:
         
         return Agent(
             config=self.agents_config["trade_executioner"],
-            tools=[OANDAExecutionTool()],
+            tools=[AlpacaExecutionTool()],
             reasoning=False,
             max_reasoning_attempts=None,
             inject_date=True,
