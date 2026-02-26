@@ -21,6 +21,15 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _parse_feed(value: str, default: DataFeed = DataFeed.IEX) -> DataFeed:
+    normalized = (value or "").strip().upper()
+    if normalized == "SIP":
+        return DataFeed.SIP
+    if normalized == "IEX":
+        return DataFeed.IEX
+    return default
+
+
 @dataclass(slots=True)
 class StreamHealth:
     connected: bool
@@ -54,7 +63,9 @@ class MarketStreamSensor:
         self._quote: dict[str, Any] | None = None
         self._last_msg_at: datetime | None = None
         self._connected = False
-        self._start_attempted = False
+        self._feed = _parse_feed(os.getenv("ALPACA_STREAM_FEED", "IEX"))
+        self._last_start_attempt_at: datetime | None = None
+        self._restart_cooldown_sec = max(int(os.getenv("STREAM_RESTART_COOLDOWN_SEC", "5")), 0)
 
     @property
     def enabled(self) -> bool:
@@ -65,22 +76,25 @@ class MarketStreamSensor:
             return False
         if self._thread and self._thread.is_alive():
             return True
-        if self._start_attempted and (self._thread is None or not self._thread.is_alive()):
+        now = _utc_now()
+        if (
+            self._last_start_attempt_at
+            and (now - self._last_start_attempt_at).total_seconds() < float(self._restart_cooldown_sec)
+        ):
             return False
+        self._last_start_attempt_at = now
 
         # Avoid noisy websocket retry loops when DNS/network is unavailable.
         try:
             socket.getaddrinfo("stream.data.alpaca.markets", 443)
         except Exception:
-            self._start_attempted = True
             return False
 
         self._stream = StockDataStream(
             self._api_key,
             self._secret_key,
-            feed=DataFeed.IEX,
+            feed=self._feed,
         )
-        self._start_attempted = True
 
         async def on_bar(bar):
             with self._lock:
@@ -115,6 +129,9 @@ class MarketStreamSensor:
                 assert self._stream is not None
                 self._stream.run()
             except Exception:
+                with self._lock:
+                    self._connected = False
+            finally:
                 with self._lock:
                     self._connected = False
 

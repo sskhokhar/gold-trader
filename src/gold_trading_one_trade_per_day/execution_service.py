@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import time
 import uuid
 from dataclasses import dataclass
@@ -11,8 +12,10 @@ from alpaca.trading.enums import OrderClass, OrderSide, OrderStatus, TimeInForce
 from alpaca.trading.requests import LimitOrderRequest, StopLossRequest, TakeProfitRequest
 
 from gold_trading_one_trade_per_day.schemas import (
+    EntryType,
     ExecutionCommand,
     ExecutionReport,
+    LatencyPolicyDecision,
     Side,
     StrategyIntent,
 )
@@ -23,6 +26,7 @@ from gold_trading_one_trade_per_day.state_store import StateStore
 class ExecutionContext:
     intent: StrategyIntent
     command: ExecutionCommand
+    latency_policy: LatencyPolicyDecision | None = None
 
 
 def utc_now() -> datetime:
@@ -60,6 +64,25 @@ class ExecutionService:
             return order
         return {"raw": str(order)}
 
+    @staticmethod
+    def _tick_size(price: float) -> float:
+        return 0.01 if price >= 1.0 else 0.0001
+
+    @classmethod
+    def _quantize_price(cls, price: float, mode: str = "nearest") -> float:
+        value = max(float(price), 0.0001)
+        tick = cls._tick_size(value)
+        units = value / tick
+        if mode == "ceil":
+            units = math.ceil(units)
+        elif mode == "floor":
+            units = math.floor(units)
+        else:
+            units = round(units)
+        quantized = units * tick
+        decimals = 2 if tick >= 0.01 else 4
+        return max(round(quantized, decimals), tick)
+
     def execute(self, context: ExecutionContext) -> ExecutionReport:
         intent = context.intent
         cmd = context.command
@@ -73,6 +96,27 @@ class ExecutionService:
                 reject_reason="INTENT_EXPIRED",
                 timestamps={"rejected_at": now.isoformat()},
             )
+
+        if context.latency_policy and context.latency_policy.degraded_mode:
+            if intent.entry_type != EntryType.MARKETABLE_LIMIT:
+                return ExecutionReport(
+                    intent_id=intent.intent_id,
+                    broker_order_id=None,
+                    status="Rejected",
+                    reject_reason="LATENCY_DEGRADED_REQUIRES_MARKETABLE_LIMIT",
+                    timestamps={"rejected_at": now.isoformat()},
+                )
+            if cmd.max_slippage_bps > context.latency_policy.effective_slippage_bps:
+                cmd = cmd.model_copy(
+                    update={
+                        "max_slippage_bps": context.latency_policy.effective_slippage_bps,
+                    }
+                )
+                context = ExecutionContext(
+                    intent=intent,
+                    command=cmd,
+                    latency_policy=context.latency_policy,
+                )
 
         if self.trading_client is None:
             return self._execute_mock(context)
@@ -154,9 +198,15 @@ class ExecutionService:
 
         price_buffer = cmd.entry_limit_price * (cmd.max_slippage_bps / 10_000)
         if cmd.side == Side.BUY:
-            protected_limit = round(cmd.entry_limit_price + price_buffer, 4)
+            protected_limit = self._quantize_price(
+                cmd.entry_limit_price + price_buffer,
+                mode="ceil",
+            )
         else:
-            protected_limit = round(max(cmd.entry_limit_price - price_buffer, 0.01), 4)
+            protected_limit = self._quantize_price(
+                max(cmd.entry_limit_price - price_buffer, 0.01),
+                mode="floor",
+            )
 
         entry_request = LimitOrderRequest(
             symbol=cmd.symbol,
@@ -167,7 +217,20 @@ class ExecutionService:
             client_order_id=cmd.client_order_id,
         )
 
-        entry_order = self.trading_client.submit_order(entry_request)
+        try:
+            entry_order = self.trading_client.submit_order(entry_request)
+        except Exception as exc:
+            return ExecutionReport(
+                intent_id=cmd.intent_id,
+                broker_order_id=None,
+                entry_order_id=None,
+                status="Not_Executed",
+                reject_reason=f"API_ERROR_ENTRY_SUBMIT:{exc}",
+                timestamps={
+                    "submitted_at": now.isoformat(),
+                    "completed_at": utc_now().isoformat(),
+                },
+            )
         entry_payload = self._order_to_payload(entry_order)
 
         entry_id = str(entry_order.id)
@@ -240,18 +303,37 @@ class ExecutionService:
         filled_qty = self._as_float(current.filled_qty)
         fill_price = self._as_float(current.filled_avg_price)
 
+        tp_price = self._quantize_price(cmd.tp, mode="nearest")
+        sl_price = self._quantize_price(cmd.sl, mode="nearest")
+
         oco_request = LimitOrderRequest(
             symbol=cmd.symbol,
             qty=filled_qty,
             side=self._exit_side(cmd.side),
             time_in_force=TimeInForce.DAY,
             order_class=OrderClass.OCO,
-            take_profit=TakeProfitRequest(limit_price=cmd.tp),
-            stop_loss=StopLossRequest(stop_price=cmd.sl),
+            take_profit=TakeProfitRequest(limit_price=tp_price),
+            stop_loss=StopLossRequest(stop_price=sl_price),
             client_order_id=f"{cmd.client_order_id}-oco",
         )
 
-        oco_order = self.trading_client.submit_order(oco_request)
+        try:
+            oco_order = self.trading_client.submit_order(oco_request)
+        except Exception as exc:
+            return ExecutionReport(
+                intent_id=cmd.intent_id,
+                broker_order_id=str(current.id),
+                entry_order_id=str(current.id),
+                status="Not_Executed",
+                reject_reason=f"API_ERROR_OCO_SUBMIT:{exc}",
+                filled_qty=filled_qty,
+                avg_fill_price=fill_price if fill_price > 0 else None,
+                timestamps={
+                    "submitted_at": now.isoformat(),
+                    "filled_at": current.filled_at.isoformat() if current.filled_at else utc_now().isoformat(),
+                    "completed_at": utc_now().isoformat(),
+                },
+            )
         self.state_store.record_order(
             order_id=str(oco_order.id),
             intent_id=cmd.intent_id,
@@ -287,3 +369,18 @@ class ExecutionService:
             "status": "flatten_requested",
             "closed": len(response) if isinstance(response, list) else 0,
         }
+
+    def cancel_all_open_orders(self) -> dict[str, Any]:
+        if self.trading_client is None:
+            return {"status": "mock_cancel_orders", "cancelled": 0}
+        try:
+            response = self.trading_client.cancel_orders()
+            return {
+                "status": "cancel_requested",
+                "cancelled": len(response) if isinstance(response, list) else 0,
+            }
+        except Exception as exc:
+            return {
+                "status": "cancel_failed",
+                "error": str(exc),
+            }

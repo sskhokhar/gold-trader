@@ -16,12 +16,15 @@ analyze_market_sentiment:
 compose_strategy_intent:
   description: >-
     Create one StrategyIntent from feature snapshot + MarketSentimentReport context.
+    Current UTC timestamp is provided as {current_utc_iso}; use this as the time anchor.
+    Intent TTL seconds is provided as {intent_ttl_seconds}.
     Return only strict JSON matching StrategyIntent schema with:
     intent_id, symbol, side, entry_type, entry_price, sl, tp, qty_hint,
     confidence, regime, generated_at, expires_at, invalidation_reason, cancel_after_sec.
     Rules:
     - Use symbol GLD.
-    - expires_at should be within 45 seconds of generated_at.
+    - generated_at must be near {current_utc_iso}.
+    - expires_at must be greater than generated_at and no more than {intent_ttl_seconds} seconds after generated_at.
     - For BUY: sl < entry_price < tp.
     - For SELL: tp < entry_price < sl.
     - cancel_after_sec must be 30.

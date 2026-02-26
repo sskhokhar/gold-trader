@@ -19,6 +19,30 @@ def _env(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
 
 
+def _parse_data_feed(value: str) -> DataFeed | None:
+    normalized = (value or "").strip().upper()
+    if normalized == "IEX":
+        return DataFeed.IEX
+    if normalized == "SIP":
+        return DataFeed.SIP
+    return None
+
+
+def _configured_data_feeds() -> list[DataFeed]:
+    raw = _env("ALPACA_DATA_FEEDS", "IEX")
+    feeds: list[DataFeed] = []
+    seen: set[DataFeed] = set()
+    for token in raw.split(","):
+        feed = _parse_data_feed(token)
+        if feed is None or feed in seen:
+            continue
+        feeds.append(feed)
+        seen.add(feed)
+    if not feeds:
+        feeds.append(DataFeed.IEX)
+    return feeds
+
+
 def has_real_credentials() -> bool:
     key = _env("ALPACA_API_KEY")
     secret = _env("ALPACA_SECRET_KEY")
@@ -69,22 +93,56 @@ def fetch_recent_bars(
         return mock_bars(symbol=symbol)
 
     tf = timeframe or TimeFrame(1, TimeFrameUnit.Minute)
-    end_dt = datetime.now(timezone.utc) - timedelta(minutes=16)
-    start_dt = end_dt - timedelta(minutes=lookback_minutes)
+    # Keep a small default lag to avoid partially formed current-minute bars,
+    # but make it configurable and retry without lag if the first query is empty.
+    delay_min = max(int(os.getenv("ALPACA_BARS_DELAY_MINUTES", "1")), 0)
 
-    request = StockBarsRequest(
-        symbol_or_symbols=symbol,
-        timeframe=tf,
-        start=start_dt,
-        end=end_dt,
-        feed=DataFeed.IEX,
-    )
-    try:
-        bars = client.get_stock_bars(request)
-        df = bars.df
+    def _make_request(end_dt: datetime, feed: DataFeed) -> StockBarsRequest:
+        start_dt = end_dt - timedelta(minutes=lookback_minutes)
+        return StockBarsRequest(
+            symbol_or_symbols=symbol,
+            timeframe=tf,
+            start=start_dt,
+            end=end_dt,
+            feed=feed,
+        )
+
+    def _normalize_bars_df(raw_df: pd.DataFrame) -> pd.DataFrame:
+        df = raw_df.copy()
         if isinstance(df.index, pd.MultiIndex):
-            df = df.reset_index().set_index("timestamp")
-        return df[["open", "high", "low", "close", "volume"]].copy()
+            df = df.reset_index()
+        if "timestamp" in df.columns:
+            df = df.set_index("timestamp")
+
+        df.columns = [str(col).lower() for col in df.columns]
+        required = ["open", "high", "low", "close", "volume"]
+        missing = [col for col in required if col not in df.columns]
+        if missing:
+            raise KeyError(f"missing bar columns: {missing}")
+        return df[required].copy()
+
+    try:
+        delayed_end = datetime.now(timezone.utc) - timedelta(minutes=delay_min)
+        last_error: Exception | None = None
+        for feed in _configured_data_feeds():
+            try:
+                bars = client.get_stock_bars(_make_request(delayed_end, feed=feed))
+                df = bars.df
+                if df is None or len(df) == 0:
+                    # Retry with no artificial delay. This helps around session open.
+                    bars = client.get_stock_bars(
+                        _make_request(datetime.now(timezone.utc), feed=feed)
+                    )
+                    df = bars.df
+                if df is None or len(df) == 0:
+                    raise RuntimeError("alpaca_bars_empty")
+                return _normalize_bars_df(df)
+            except Exception as exc:
+                last_error = exc
+                continue
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("alpaca_bars_empty")
     except Exception:
         if not allow_mock:
             raise
@@ -98,11 +156,24 @@ def fetch_latest_quote(symbol: str = "GLD", allow_mock: bool = True) -> tuple[fl
             raise RuntimeError("alpaca_data_client_unavailable")
         return 200.00, 200.01
 
-    req = StockLatestQuoteRequest(symbol_or_symbols=symbol, feed=DataFeed.IEX)
     try:
-        quotes = client.get_stock_latest_quote(req)
-        quote = quotes[symbol]
-        return float(quote.bid_price), float(quote.ask_price)
+        last_error: Exception | None = None
+        for feed in _configured_data_feeds():
+            try:
+                req = StockLatestQuoteRequest(symbol_or_symbols=symbol, feed=feed)
+                quotes = client.get_stock_latest_quote(req)
+                quote = quotes[symbol]
+                bid = float(quote.bid_price)
+                ask = float(quote.ask_price)
+                if bid <= 0 or ask <= 0 or ask < bid:
+                    raise RuntimeError("alpaca_quote_invalid")
+                return bid, ask
+            except Exception as exc:
+                last_error = exc
+                continue
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("alpaca_quote_unavailable")
     except Exception:
         if not allow_mock:
             raise
@@ -113,7 +184,11 @@ def fetch_macro_proxy_returns(allow_mock: bool = True) -> dict[str, float]:
     proxies = ["SPY", "VXX", "UUP", "TLT"]
     out: dict[str, float] = {}
     for symbol in proxies:
-        bars = fetch_recent_bars(symbol=symbol, lookback_minutes=30, allow_mock=allow_mock)
+        try:
+            bars = fetch_recent_bars(symbol=symbol, lookback_minutes=30, allow_mock=allow_mock)
+        except Exception:
+            out[symbol] = 0.0
+            continue
         if len(bars) < 2:
             out[symbol] = 0.0
             continue

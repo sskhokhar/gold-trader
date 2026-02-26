@@ -146,6 +146,7 @@ def should_wake_ai(
 
     context = {
         "spread": snapshot.spread,
+        "max_spread_threshold": max_spread,
         "volume_spike_ratio": snapshot.volume_spike_ratio,
         "vwap_displacement_pct": snapshot.vwap_displacement_pct,
         "bar_range_expansion_ratio": snapshot.bar_range_expansion_ratio,

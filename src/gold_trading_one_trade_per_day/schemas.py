@@ -212,3 +212,35 @@ class TransitionEvent(BaseModel):
     to_state: IntentState
     at: datetime
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class LatencyPolicyDecision(BaseModel):
+    degraded_mode: bool = False
+    reason_code: str = "normal"
+    effective_slippage_bps: float = Field(default=20, ge=1, le=200)
+    p95_signal_to_fill_ms: float | None = Field(default=None, ge=0)
+    sample_size: int = Field(default=0, ge=0)
+    recovery_streak: int = Field(default=0, ge=0)
+    evaluated_at: datetime
+
+    @field_validator("evaluated_at", mode="before")
+    @classmethod
+    def ensure_evaluated_at_tz(cls, value):
+        if isinstance(value, datetime) and value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
+
+
+class WarmupReport(BaseModel):
+    generated_at: datetime
+    mode: str = "paper"
+    passed: bool
+    checks: dict[str, Any] = Field(default_factory=dict)
+    reason_codes: list[str] = Field(default_factory=list)
+
+    @field_validator("generated_at", mode="before")
+    @classmethod
+    def ensure_generated_tz(cls, value):
+        if isinstance(value, datetime) and value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value

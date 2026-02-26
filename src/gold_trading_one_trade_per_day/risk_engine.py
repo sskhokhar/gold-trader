@@ -165,6 +165,7 @@ class RiskEngine:
         snapshot: FeatureSnapshot,
         day_state: DailyState,
         now: datetime | None = None,
+        max_spread_override: float | None = None,
     ) -> RiskDecision:
         ts = now or datetime.now(tz=NY_TZ)
         local_ts = ts.astimezone(NY_TZ)
@@ -192,10 +193,15 @@ class RiskEngine:
             decision.reason_detail = "strategy intent is stale"
             return decision
 
-        if snapshot.spread > self.config.max_spread:
+        max_spread_threshold = (
+            float(max_spread_override)
+            if max_spread_override is not None
+            else float(self.config.max_spread)
+        )
+        if snapshot.spread > max_spread_threshold:
             decision.reason_code = "SPREAD_TOO_WIDE"
             decision.reason_detail = (
-                f"spread {snapshot.spread:.4f} exceeds {self.config.max_spread:.4f}"
+                f"spread {snapshot.spread:.4f} exceeds {max_spread_threshold:.4f}"
             )
             return decision
 

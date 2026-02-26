@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -151,6 +151,78 @@ class StateStore:
                     day TEXT PRIMARY KEY,
                     metrics_json TEXT NOT NULL,
                     created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS llm_quota_ledger (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    day TEXT NOT NULL,
+                    minute_bucket TEXT NOT NULL,
+                    reserved INTEGER NOT NULL,
+                    used INTEGER NOT NULL,
+                    source TEXT NOT NULL,
+                    event_id TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_llm_quota_day
+                ON llm_quota_ledger(day);
+
+                CREATE INDEX IF NOT EXISTS idx_llm_quota_minute
+                ON llm_quota_ledger(minute_bucket);
+
+                CREATE INDEX IF NOT EXISTS idx_llm_quota_event
+                ON llm_quota_ledger(event_id);
+
+                CREATE TABLE IF NOT EXISTS analysis_cache (
+                    cache_key TEXT PRIMARY KEY,
+                    model TEXT NOT NULL,
+                    prompt_version TEXT NOT NULL,
+                    report_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    hit_count INTEGER NOT NULL DEFAULT 0
+                );
+
+                CREATE TABLE IF NOT EXISTS latency_metrics (
+                    event_id TEXT PRIMARY KEY,
+                    intent_id TEXT,
+                    day TEXT NOT NULL,
+                    event_detected_at TEXT,
+                    llm_start_at TEXT,
+                    llm_end_at TEXT,
+                    risk_approved_at TEXT,
+                    entry_submitted_at TEXT,
+                    entry_filled_at TEXT,
+                    analysis_latency_ms REAL,
+                    signal_to_submit_ms REAL,
+                    signal_to_fill_ms REAL,
+                    submit_to_fill_ms REAL,
+                    degraded_mode INTEGER NOT NULL DEFAULT 0,
+                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_latency_day
+                ON latency_metrics(day);
+
+                CREATE INDEX IF NOT EXISTS idx_latency_fill
+                ON latency_metrics(entry_filled_at);
+
+                CREATE TABLE IF NOT EXISTS watchdog_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_at TEXT NOT NULL,
+                    reason_code TEXT NOT NULL,
+                    action_json TEXT NOT NULL,
+                    metadata_json TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_watchdog_event_at
+                ON watchdog_events(event_at);
+
+                CREATE TABLE IF NOT EXISTS system_flags (
+                    key TEXT PRIMARY KEY,
+                    value_json TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
                 """
@@ -617,3 +689,494 @@ class StateStore:
             data["snapshot"] = json.loads(data.pop("snapshot_json"))
             out.append(data)
         return out
+
+    def record_quota_ledger(
+        self,
+        event_id: str,
+        source: str,
+        reserved: int,
+        used: int,
+        at: datetime | None = None,
+    ) -> None:
+        ts = at or utc_now()
+        day = ts.date().isoformat()
+        minute_bucket = ts.strftime("%Y-%m-%dT%H:%M")
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO llm_quota_ledger
+                (day, minute_bucket, reserved, used, source, event_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    day,
+                    minute_bucket,
+                    max(int(reserved), 0),
+                    max(int(used), 0),
+                    source,
+                    event_id,
+                    ts.isoformat(),
+                ),
+            )
+
+    def get_quota_usage_snapshot(
+        self,
+        now: datetime,
+        rpm_cap: int,
+        rpd_cap: int,
+        reservation_ttl_sec: int,
+    ) -> dict[str, int]:
+        day = now.date().isoformat()
+        minute_bucket = now.strftime("%Y-%m-%dT%H:%M")
+        active_cutoff = (now - timedelta(seconds=reservation_ttl_sec)).isoformat()
+
+        with self._conn() as conn:
+            rpm_used = conn.execute(
+                """
+                SELECT COALESCE(SUM(used), 0) AS value
+                FROM llm_quota_ledger
+                WHERE source LIKE 'commit:%' AND minute_bucket = ?
+                """,
+                (minute_bucket,),
+            ).fetchone()["value"]
+
+            rpd_used = conn.execute(
+                """
+                SELECT COALESCE(SUM(used), 0) AS value
+                FROM llm_quota_ledger
+                WHERE source LIKE 'commit:%' AND day = ?
+                """,
+                (day,),
+            ).fetchone()["value"]
+
+            rpm_reserved = conn.execute(
+                """
+                SELECT COALESCE(SUM(r.reserved), 0) AS value
+                FROM llm_quota_ledger r
+                WHERE r.source LIKE 'reserve:%'
+                  AND r.minute_bucket = ?
+                  AND r.created_at >= ?
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM llm_quota_ledger c
+                      WHERE c.event_id = r.event_id
+                        AND c.source LIKE 'commit:%'
+                  )
+                """,
+                (minute_bucket, active_cutoff),
+            ).fetchone()["value"]
+
+            rpd_reserved = conn.execute(
+                """
+                SELECT COALESCE(SUM(r.reserved), 0) AS value
+                FROM llm_quota_ledger r
+                WHERE r.source LIKE 'reserve:%'
+                  AND r.day = ?
+                  AND r.created_at >= ?
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM llm_quota_ledger c
+                      WHERE c.event_id = r.event_id
+                        AND c.source LIKE 'commit:%'
+                  )
+                """,
+                (day, active_cutoff),
+            ).fetchone()["value"]
+
+        rpm_total = int(rpm_used) + int(rpm_reserved)
+        rpd_total = int(rpd_used) + int(rpd_reserved)
+        return {
+            "rpm_used": rpm_total,
+            "rpd_used": rpd_total,
+            "rpm_remaining": max(int(rpm_cap) - rpm_total, 0),
+            "rpd_remaining": max(int(rpd_cap) - rpd_total, 0),
+        }
+
+    def get_quota_ledger_for_day(self, day: str) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT day, minute_bucket, reserved, used, source, event_id, created_at
+                FROM llm_quota_ledger
+                WHERE day = ?
+                ORDER BY created_at ASC
+                """,
+                (day,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def upsert_cached_analysis(
+        self,
+        cache_key: str,
+        model_name: str,
+        prompt_version: str,
+        report: MarketSentimentReport,
+        ttl_sec: int,
+        now: datetime,
+    ) -> None:
+        created_at = now.isoformat()
+        expires_at = (now + timedelta(seconds=max(ttl_sec, 1))).isoformat()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO analysis_cache
+                (cache_key, model, prompt_version, report_json, created_at, expires_at, hit_count)
+                VALUES (?, ?, ?, ?, ?, ?, 0)
+                ON CONFLICT(cache_key) DO UPDATE SET
+                    model = excluded.model,
+                    prompt_version = excluded.prompt_version,
+                    report_json = excluded.report_json,
+                    created_at = excluded.created_at,
+                    expires_at = excluded.expires_at
+                """,
+                (
+                    cache_key,
+                    model_name,
+                    prompt_version,
+                    report.model_dump_json(),
+                    created_at,
+                    expires_at,
+                ),
+            )
+
+    def get_cached_analysis(
+        self,
+        cache_key: str,
+        now: datetime,
+    ) -> MarketSentimentReport | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT report_json
+                FROM analysis_cache
+                WHERE cache_key = ? AND expires_at > ?
+                """,
+                (cache_key, now.isoformat()),
+            ).fetchone()
+            if not row:
+                return None
+            conn.execute(
+                """
+                UPDATE analysis_cache
+                SET hit_count = hit_count + 1
+                WHERE cache_key = ?
+                """,
+                (cache_key,),
+            )
+        return MarketSentimentReport.model_validate_json(row["report_json"])
+
+    @staticmethod
+    def _as_iso(value: datetime | str | None) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return str(value)
+
+    @staticmethod
+    def _parse_iso(value: str | None) -> datetime | None:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _duration_ms(start: datetime | None, end: datetime | None) -> float | None:
+        if start is None or end is None:
+            return None
+        return max((end - start).total_seconds() * 1000.0, 0.0)
+
+    def upsert_latency_metric(
+        self,
+        event_id: str,
+        intent_id: str | None = None,
+        event_detected_at: datetime | str | None = None,
+        llm_start_at: datetime | str | None = None,
+        llm_end_at: datetime | str | None = None,
+        risk_approved_at: datetime | str | None = None,
+        entry_submitted_at: datetime | str | None = None,
+        entry_filled_at: datetime | str | None = None,
+        degraded_mode: bool | None = None,
+        metadata_patch: dict[str, Any] | None = None,
+    ) -> None:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM latency_metrics
+                WHERE event_id = ?
+                """,
+                (event_id,),
+            ).fetchone()
+
+            payload = dict(row) if row else {}
+            metadata = json.loads(payload.get("metadata_json", "{}")) if payload else {}
+            if metadata_patch:
+                metadata.update(metadata_patch)
+
+            current_intent = payload.get("intent_id")
+            current_degraded = bool(payload.get("degraded_mode", 0))
+
+            iso_detected = self._as_iso(event_detected_at) or payload.get("event_detected_at")
+            iso_llm_start = self._as_iso(llm_start_at) or payload.get("llm_start_at")
+            iso_llm_end = self._as_iso(llm_end_at) or payload.get("llm_end_at")
+            iso_risk = self._as_iso(risk_approved_at) or payload.get("risk_approved_at")
+            iso_submit = self._as_iso(entry_submitted_at) or payload.get("entry_submitted_at")
+            iso_fill = self._as_iso(entry_filled_at) or payload.get("entry_filled_at")
+
+            dt_detected = self._parse_iso(iso_detected)
+            dt_llm_start = self._parse_iso(iso_llm_start)
+            dt_llm_end = self._parse_iso(iso_llm_end)
+            dt_submit = self._parse_iso(iso_submit)
+            dt_fill = self._parse_iso(iso_fill)
+
+            day = (
+                payload.get("day")
+                or (dt_detected.date().isoformat() if dt_detected else utc_now().date().isoformat())
+            )
+            final_degraded = int(current_degraded if degraded_mode is None else bool(degraded_mode))
+
+            analysis_latency_ms = self._duration_ms(dt_llm_start, dt_llm_end)
+            signal_to_submit_ms = self._duration_ms(dt_detected, dt_submit)
+            signal_to_fill_ms = self._duration_ms(dt_detected, dt_fill)
+            submit_to_fill_ms = self._duration_ms(dt_submit, dt_fill)
+
+            conn.execute(
+                """
+                INSERT INTO latency_metrics (
+                    event_id, intent_id, day, event_detected_at, llm_start_at, llm_end_at,
+                    risk_approved_at, entry_submitted_at, entry_filled_at, analysis_latency_ms,
+                    signal_to_submit_ms, signal_to_fill_ms, submit_to_fill_ms, degraded_mode,
+                    metadata_json, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(event_id) DO UPDATE SET
+                    intent_id = excluded.intent_id,
+                    day = excluded.day,
+                    event_detected_at = excluded.event_detected_at,
+                    llm_start_at = excluded.llm_start_at,
+                    llm_end_at = excluded.llm_end_at,
+                    risk_approved_at = excluded.risk_approved_at,
+                    entry_submitted_at = excluded.entry_submitted_at,
+                    entry_filled_at = excluded.entry_filled_at,
+                    analysis_latency_ms = excluded.analysis_latency_ms,
+                    signal_to_submit_ms = excluded.signal_to_submit_ms,
+                    signal_to_fill_ms = excluded.signal_to_fill_ms,
+                    submit_to_fill_ms = excluded.submit_to_fill_ms,
+                    degraded_mode = excluded.degraded_mode,
+                    metadata_json = excluded.metadata_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    event_id,
+                    intent_id or current_intent,
+                    day,
+                    iso_detected,
+                    iso_llm_start,
+                    iso_llm_end,
+                    iso_risk,
+                    iso_submit,
+                    iso_fill,
+                    analysis_latency_ms,
+                    signal_to_submit_ms,
+                    signal_to_fill_ms,
+                    submit_to_fill_ms,
+                    final_degraded,
+                    json.dumps(metadata),
+                    utc_now().isoformat(),
+                ),
+            )
+
+    def get_recent_signal_to_fill_ms(self, limit: int = 50) -> list[float]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT signal_to_fill_ms
+                FROM latency_metrics
+                WHERE signal_to_fill_ms IS NOT NULL
+                ORDER BY entry_filled_at DESC
+                LIMIT ?
+                """,
+                (max(int(limit), 1),),
+            ).fetchall()
+        return [float(row["signal_to_fill_ms"]) for row in rows]
+
+    def get_latency_metrics_for_day(self, day: str) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM latency_metrics
+                WHERE day = ?
+                ORDER BY updated_at ASC
+                """,
+                (day,),
+            ).fetchall()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            data = dict(row)
+            data["degraded_mode"] = bool(data.get("degraded_mode", 0))
+            data["metadata"] = json.loads(data.pop("metadata_json", "{}"))
+            out.append(data)
+        return out
+
+    def record_watchdog_event(
+        self,
+        reason_code: str,
+        action: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
+        at: datetime | None = None,
+    ) -> None:
+        ts = (at or utc_now()).isoformat()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO watchdog_events (event_at, reason_code, action_json, metadata_json)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    ts,
+                    reason_code,
+                    json.dumps(action),
+                    json.dumps(metadata or {}),
+                ),
+            )
+
+    def get_watchdog_events_for_day(self, day: str) -> list[dict[str, Any]]:
+        prefix = f"{day}%"
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, event_at, reason_code, action_json, metadata_json
+                FROM watchdog_events
+                WHERE event_at LIKE ?
+                ORDER BY event_at ASC
+                """,
+                (prefix,),
+            ).fetchall()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            data = dict(row)
+            data["action"] = json.loads(data.pop("action_json"))
+            data["metadata"] = json.loads(data.pop("metadata_json"))
+            out.append(data)
+        return out
+
+    def set_system_flag(self, key: str, value: Any) -> None:
+        now = utc_now().isoformat()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO system_flags (key, value_json, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value_json = excluded.value_json,
+                    updated_at = excluded.updated_at
+                """,
+                (key, json.dumps(value), now),
+            )
+
+    def get_system_flag(self, key: str, default: Any = None) -> Any:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT value_json
+                FROM system_flags
+                WHERE key = ?
+                """,
+                (key,),
+            ).fetchone()
+        if not row:
+            return default
+        try:
+            return json.loads(row["value_json"])
+        except Exception:
+            return default
+
+    def clear_system_flag(self, key: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "DELETE FROM system_flags WHERE key = ?",
+                (key,),
+            )
+
+    def list_open_entry_orders(self) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    o.intent_id,
+                    o.client_order_id,
+                    o.broker_order_id,
+                    o.status,
+                    o.submitted_at,
+                    si.intent_json
+                FROM orders o
+                LEFT JOIN strategy_intents si
+                    ON si.intent_id = o.intent_id
+                WHERE o.order_role = 'entry'
+                  AND replace(lower(o.status), 'orderstatus.', '') NOT IN (
+                    'filled', 'canceled', 'cancelled', 'rejected', 'expired', 'done_for_day'
+                  )
+                ORDER BY o.submitted_at ASC
+                """
+            ).fetchall()
+
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            data = dict(row)
+            raw_intent = data.pop("intent_json", None)
+            data["intent"] = (
+                StrategyIntent.model_validate_json(raw_intent) if raw_intent else None
+            )
+            out.append(data)
+        return out
+
+    def get_denied_intents_since(
+        self,
+        since: datetime,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT intent_id, intent_json, state, reason, updated_at
+                FROM strategy_intents
+                WHERE state = ? AND updated_at >= ?
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                (IntentState.DENIED.value, since.isoformat(), max(int(limit), 1)),
+            ).fetchall()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            data = dict(row)
+            data["intent"] = StrategyIntent.model_validate_json(data.pop("intent_json"))
+            out.append(data)
+        return out
+
+    def db_health_snapshot(self) -> dict[str, Any]:
+        probe_key = "__db_health_probe__"
+        probe_value = {"ok": True, "at": utc_now().isoformat()}
+        with self._conn() as conn:
+            journal_mode = conn.execute("PRAGMA journal_mode;").fetchone()[0]
+            conn.execute(
+                """
+                INSERT INTO system_flags (key, value_json, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value_json = excluded.value_json,
+                    updated_at = excluded.updated_at
+                """,
+                (probe_key, json.dumps(probe_value), utc_now().isoformat()),
+            )
+            row = conn.execute(
+                "SELECT value_json FROM system_flags WHERE key = ?",
+                (probe_key,),
+            ).fetchone()
+            conn.execute("DELETE FROM system_flags WHERE key = ?", (probe_key,))
+        return {
+            "journal_mode": str(journal_mode).lower(),
+            "read_write_ok": bool(row),
+        }

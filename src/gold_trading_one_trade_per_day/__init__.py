@@ -6,9 +6,11 @@ from gold_trading_one_trade_per_day.schemas import (
     ExecutionCommand,
     ExecutionReport,
     FeatureSnapshot,
+    LatencyPolicyDecision,
     MarketSentimentReport,
     RiskDecision,
     StrategyIntent,
+    WarmupReport,
 )
 
 __all__ = [
@@ -20,4 +22,6 @@ __all__ = [
     "ExecutionCommand",
     "ExecutionReport",
     "DailyState",
+    "LatencyPolicyDecision",
+    "WarmupReport",
 ]

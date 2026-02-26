@@ -93,6 +93,78 @@ class TestStateStoreAndExecution(unittest.TestCase):
         self.assertTrue(len(events) >= 1)
         self.assertEqual(events[0]["status"], "skipped:open_warmup")
 
+    def test_live_submit_error_returns_not_executed(self):
+        class DummyClient:
+            def submit_order(self, _req):
+                raise RuntimeError("sub-penny increment")
+
+        now = datetime.now(tz=ZoneInfo("America/New_York"))
+        intent = StrategyIntent(
+            symbol="GLD",
+            side=Side.BUY,
+            entry_price=123.45,
+            sl=122.5,
+            tp=124.0,
+            qty_hint=10,
+            confidence=0.8,
+            regime=Regime.TREND,
+            generated_at=now,
+            expires_at=now + timedelta(seconds=45),
+            invalidation_reason="smoke test",
+            cancel_after_sec=30,
+        )
+        cmd = ExecutionCommand(
+            intent_id=intent.intent_id,
+            client_order_id="gld-test-live-001",
+            cancel_after_sec=30,
+            max_slippage_bps=20,
+            risk_signature="abcdef123456",
+            symbol="GLD",
+            side=Side.BUY,
+            qty=1,
+            entry_limit_price=123.45,
+            sl=122.5,
+            tp=124.0,
+        )
+        service = ExecutionService(state_store=self.store, trading_client=DummyClient())
+        report = service.execute(ExecutionContext(intent=intent, command=cmd))
+        self.assertEqual(report.status, "Not_Executed")
+        self.assertIn("API_ERROR_ENTRY_SUBMIT", report.reject_reason or "")
+
+    def test_quantize_price_for_equity_tick(self):
+        self.assertEqual(ExecutionService._quantize_price(123.6969, "ceil"), 123.70)
+        self.assertEqual(ExecutionService._quantize_price(123.6969, "floor"), 123.69)
+
+    def test_list_open_entry_orders_excludes_enum_canceled_status(self):
+        now = datetime.now(tz=ZoneInfo("America/New_York"))
+        intent = StrategyIntent(
+            symbol="GLD",
+            side=Side.BUY,
+            entry_price=200,
+            sl=199,
+            tp=202,
+            qty_hint=10,
+            confidence=0.8,
+            regime=Regime.TREND,
+            generated_at=now,
+            expires_at=now + timedelta(seconds=45),
+            invalidation_reason="test canceled enum status",
+            cancel_after_sec=30,
+        )
+        self.store.record_intent(intent=intent, event_id=None)
+        self.store.record_order(
+            order_id="ord-canceled-enum",
+            intent_id=intent.intent_id,
+            client_order_id="gld-cancel-enum-1",
+            order_role="entry",
+            status="OrderStatus.CANCELED",
+            payload={"status": "canceled"},
+            broker_order_id="broker-canceled-enum",
+            submitted_at=now,
+        )
+        open_orders = self.store.list_open_entry_orders()
+        self.assertEqual(open_orders, [])
+
 
 if __name__ == "__main__":
     unittest.main()
