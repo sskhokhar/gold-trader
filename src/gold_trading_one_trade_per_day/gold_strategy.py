@@ -47,7 +47,7 @@ class TradingSession(str, Enum):
     OFF_HOURS = "off_hours"
 
 
-@dataclass(slots=True)
+@dataclass
 class SessionInfo:
     session: TradingSession
     session_quality: float  # 0.0 - 1.0, how good this session is for gold
@@ -131,7 +131,7 @@ class SetupType(str, Enum):
     NO_SETUP = "no_setup"
 
 
-@dataclass(slots=True)
+@dataclass
 class TradeSetup:
     setup_type: SetupType
     side: str  # "BUY" or "SELL"

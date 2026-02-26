@@ -53,7 +53,7 @@ def rsi(series: pd.Series, period: int = 14) -> pd.Series:
 # MACD (Moving Average Convergence Divergence)
 # ---------------------------------------------------------------------------
 
-@dataclass(slots=True)
+@dataclass
 class MACDResult:
     macd_line: pd.Series
     signal_line: pd.Series
@@ -107,7 +107,7 @@ def atr(
 # Bollinger Bands
 # ---------------------------------------------------------------------------
 
-@dataclass(slots=True)
+@dataclass
 class BollingerBands:
     upper: pd.Series
     middle: pd.Series
@@ -178,7 +178,7 @@ def vwap_bands(
 # Stochastic Oscillator
 # ---------------------------------------------------------------------------
 
-@dataclass(slots=True)
+@dataclass
 class StochasticResult:
     k: pd.Series
     d: pd.Series
@@ -205,7 +205,7 @@ def stochastic(
 # Average Directional Index (ADX)
 # ---------------------------------------------------------------------------
 
-@dataclass(slots=True)
+@dataclass
 class ADXResult:
     adx: pd.Series
     plus_di: pd.Series
@@ -247,7 +247,7 @@ def adx(
 # Support / Resistance via Pivot Points (Camarilla - popular for gold)
 # ---------------------------------------------------------------------------
 
-@dataclass(slots=True)
+@dataclass
 class PivotLevels:
     pivot: float
     r1: float
@@ -280,7 +280,7 @@ def camarilla_pivots(
 # Consolidated indicator snapshot for the strategy engine
 # ---------------------------------------------------------------------------
 
-@dataclass(slots=True)
+@dataclass
 class IndicatorSnapshot:
     """All indicators computed at once for a given bar series."""
     # EMAs
