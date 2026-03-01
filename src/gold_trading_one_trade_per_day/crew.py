@@ -205,6 +205,7 @@ class GoldTradingOneTradePerDayCrew:
                 "Current UTC time (must anchor generated_at/expires_at): {current_utc_iso}\n"
                 "Intent TTL seconds: {intent_ttl_seconds}\n\n"
                 "Feature Snapshot JSON:\n{feature_snapshot_json}\n\n"
+                "Math-Calculated TradeSetup JSON:\n{trade_setup_json}\n\n"
                 "Cached MarketSentimentReport JSON:\n{cached_market_report_json}\n"
             ),
             expected_output=strategy_task_cfg["expected_output"],

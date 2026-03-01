@@ -146,11 +146,20 @@ class TradeSetup:
     indicators: IndicatorSnapshot
     session: SessionInfo
 
+    def has_valid_setup(self) -> bool:
+        """Return True if the analysis found a tradeable setup."""
+        return self.setup_type != SetupType.NO_SETUP
+
     def to_dict(self) -> dict[str, Any]:
         import dataclasses
         d = dataclasses.asdict(self)
         d["indicators"] = self.indicators.to_dict()
         return d
+
+    def to_json(self) -> str:
+        """Serialize to JSON string for embedding in LLM prompts."""
+        import json
+        return json.dumps(self.to_dict())
 
 
 # ---------------------------------------------------------------------------

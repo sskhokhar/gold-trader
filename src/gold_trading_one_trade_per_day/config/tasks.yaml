@@ -13,6 +13,12 @@ analyze_market_sentiment:
     If an EventBriefingReport is provided (spike mode), incorporate the event
     context and surprise direction into your sentiment assessment.
 
+    The algorithmic engine has identified the following trade setup:
+    {trade_setup_json}
+
+    Factor this into your sentiment assessment. Your job is still to assess
+    overall market sentiment, regime, and greed — not to modify trade levels.
+
     EventBriefingReport (if available):
     {event_briefing_json}
   expected_output: >-
@@ -21,12 +27,35 @@ analyze_market_sentiment:
 
 compose_strategy_intent:
   description: >-
-    Create one StrategyIntent from feature snapshot + MarketSentimentReport context.
-    Current UTC timestamp is provided as {current_utc_iso}; use this as the time anchor.
-    Intent TTL seconds is provided as {intent_ttl_seconds}.
-    Return only strict JSON matching StrategyIntent schema with:
-    intent_id, symbol, side, entry_type, entry_price, sl, tp, qty_hint,
-    confidence, regime, generated_at, expires_at, invalidation_reason, cancel_after_sec.
+    You are given a math-calculated TradeSetup with precise entry, stop-loss,
+    and take-profit levels computed from technical indicators (ATR, VWAP,
+    support/resistance, confluence scoring).
+
+    Your job is to VALIDATE this trade against the market sentiment report
+    and any event briefing context. You must decide:
+
+    1. APPROVE: The trade direction aligns with sentiment and context.
+       Create a StrategyIntent using the EXACT entry, SL, and TP from the TradeSetup.
+
+    2. VETO: The trade direction conflicts with news, sentiment, or regime.
+       Create a StrategyIntent with confidence=0.0 and explain why in invalidation_reason.
+
+    3. You may adjust the confidence level (0.0-1.0) based on how strongly
+       the context supports the math setup, but you MUST use the exact
+       entry_price, sl, and tp values from the TradeSetup.
+
+    Math-Calculated TradeSetup:
+    {trade_setup_json}
+
+    Market Sentiment Report:
+    (from previous task output)
+
+    Feature Snapshot:
+    {feature_snapshot_json}
+
+    Current UTC time: {current_utc_iso}
+    Intent TTL seconds: {intent_ttl_seconds}
+
     Rules:
     - Use symbol XAU_USD.
     - generated_at must be near {current_utc_iso}.
@@ -34,10 +63,12 @@ compose_strategy_intent:
     - For BUY: sl < entry_price < tp.
     - For SELL: tp < entry_price < sl.
     - cancel_after_sec must be 30.
-    - During spike events (when EventBriefingReport gold_bias is BUY or SELL), use
-      momentum-following entries and wider TP targets appropriate for news-driven moves.
+
+    CRITICAL: Use the entry_price, sl, and tp from the TradeSetup exactly.
+    Do NOT invent your own price levels.
   expected_output: >-
-    Strict JSON for StrategyIntent. No markdown. No extra keys.
+    A valid StrategyIntent JSON object using the math-calculated price levels,
+    with your confidence assessment and invalidation_reason. No markdown. No extra keys.
   agent: strategy_composer
   context:
     - analyze_market_sentiment
