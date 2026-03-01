@@ -168,11 +168,17 @@ class RiskEngine:
             if not day_state.last_lock_reason:
                 day_state.last_lock_reason = "soft_profit_lock"
 
-        if self.config.daily_profit_target_usd is not None and day_state.dollar_pnl >= self.config.daily_profit_target_usd:
+        if (
+            self.config.daily_profit_target_usd is not None
+            and day_state.dollar_pnl >= self.config.daily_profit_target_usd
+        ):
             day_state.hard_lock = True
             day_state.soft_lock = True
             day_state.last_lock_reason = "dollar_profit_target_reached"
-        if self.config.daily_loss_limit_usd is not None and day_state.dollar_pnl <= -self.config.daily_loss_limit_usd:
+        if (
+            self.config.daily_loss_limit_usd is not None
+            and day_state.dollar_pnl <= -self.config.daily_loss_limit_usd
+        ):
             day_state.hard_lock = True
             day_state.last_lock_reason = "dollar_loss_limit_reached"
 

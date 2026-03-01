@@ -14,7 +14,7 @@ from gold_trading_one_trade_per_day.schemas import (
 )
 
 
-class TestDetermineTradigMode(unittest.TestCase):
+class TestDetermineTradingMode(unittest.TestCase):
     def _make_calendar(
         self,
         minutes_until_event: int,
