@@ -6,7 +6,7 @@ import unittest
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from gold_trading_one_trade_per_day.risk_engine import RiskEngine, load_risk_config
+from gold_trading_one_trade_per_day.risk_engine import RiskConfig, RiskEngine, load_risk_config
 from gold_trading_one_trade_per_day.schemas import DailyState, Regime, Side, StrategyIntent
 
 
@@ -49,7 +49,7 @@ class TestSchemasAndRisk(unittest.TestCase):
             )
 
     def test_risk_soft_and_hard_locks(self):
-        engine = RiskEngine()
+        engine = RiskEngine(config=RiskConfig())
         state = DailyState(
             day="2026-02-25",
             day_start_equity=100000,
