@@ -151,6 +151,7 @@ def should_wake_ai(
     open_warmup_minutes: int | None = None,
     macro_event_active: bool = False,
     macro_event_label: str | None = None,
+    trading_mode: str = "daily_scalp",
 ) -> tuple[bool, str, dict]:
     warmup = open_warmup_minutes
     if warmup is None:
@@ -165,13 +166,16 @@ def should_wake_ai(
         "data_source": snapshot.data_source.value,
         "data_age_sec": snapshot.data_age_sec,
         "macro_event_label": macro_event_label,
+        "trading_mode": trading_mode,
     }
 
     if day_state.hard_lock:
         return False, "hard_lock", context
     if not snapshot.is_rth:
         return False, "outside_rth", context
-    if macro_event_active:
+    # In spike mode, macro events are the reason to trade — do not block.
+    # In daily_scalp mode, macro events mean high volatility without context — block.
+    if trading_mode != "spike" and macro_event_active:
         return False, "macro_event_window", context
     if in_open_warmup(snapshot.timestamp, warmup):
         return False, "open_warmup", context

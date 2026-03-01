@@ -197,6 +197,7 @@ class DailyState(BaseModel):
     equity_hwm: float = Field(gt=0)
     current_equity: float = Field(gt=0)
     equity_change_pct: float = 0.0
+    dollar_pnl: float = 0.0
     soft_lock: bool = False
     hard_lock: bool = False
     max_entries_per_day: int = Field(default=8, ge=1)
@@ -204,6 +205,28 @@ class DailyState(BaseModel):
     consecutive_losses: int = Field(default=0, ge=0)
     last_trade_closed_at: datetime | None = None
     last_lock_reason: str = ""
+
+
+class EventBriefingReport(BaseModel):
+    briefing_id: str = Field(default_factory=lambda: str(uuid4()))
+    event_name: str
+    release_time: datetime
+    impact: str
+    consensus: str | None = None
+    previous: str | None = None
+    actual: str | None = None
+    surprise_direction: str | None = None
+    gold_bias: str | None = None
+    rationale: list[str] = Field(default_factory=list)
+    confidence: float = Field(ge=0, le=1)
+    generated_at: datetime
+
+    @field_validator("release_time", "generated_at", mode="before")
+    @classmethod
+    def ensure_briefing_tz(cls, value):
+        if isinstance(value, datetime) and value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
 
 
 class TransitionEvent(BaseModel):
