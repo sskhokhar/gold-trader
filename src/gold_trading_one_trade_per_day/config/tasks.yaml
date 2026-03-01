@@ -9,6 +9,12 @@ analyze_market_sentiment:
     - Keep rationale concise and concrete.
     - sentiment_score must be in [-1, 1].
     - greed_score must be in [0, 100].
+
+    If an EventBriefingReport is provided (spike mode), incorporate the event
+    context and surprise direction into your sentiment assessment.
+
+    EventBriefingReport (if available):
+    {event_briefing_json}
   expected_output: >-
     Strict JSON for MarketSentimentReport. No markdown. No extra keys.
   agent: market_sentiment_analyst
@@ -28,8 +34,30 @@ compose_strategy_intent:
     - For BUY: sl < entry_price < tp.
     - For SELL: tp < entry_price < sl.
     - cancel_after_sec must be 30.
+    - During spike events (when EventBriefingReport gold_bias is BUY or SELL), use
+      momentum-following entries and wider TP targets appropriate for news-driven moves.
   expected_output: >-
     Strict JSON for StrategyIntent. No markdown. No extra keys.
   agent: strategy_composer
   context:
     - analyze_market_sentiment
+
+produce_event_briefing:
+  description: >-
+    Analyze the provided economic event data and current market context.
+    Determine if the actual data (if released) represents a hawkish beat,
+    dovish miss, or inline result relative to consensus.
+    Assess the likely impact on XAUUSD and provide a directional bias.
+
+    Economic Event Data:
+    {event_data_json}
+
+    Current Market Snapshot:
+    {feature_snapshot_json}
+
+    Provide clear rationale connecting the data to gold price direction.
+    surprise_direction must be one of: "dovish_miss", "hawkish_beat", "inline", or null.
+    gold_bias must be one of: "BUY", "SELL", "NEUTRAL", or null.
+  expected_output: >-
+    A valid EventBriefingReport JSON object with surprise_direction,
+    gold_bias, confidence, and rationale. No markdown. No extra keys.

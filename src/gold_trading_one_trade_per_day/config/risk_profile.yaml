@@ -10,3 +10,6 @@ max_spread: 0.50
 intent_ttl_seconds: 45
 # XAU_USD trades 24/5; no NYSE cutoff applies — using 23:00 UTC as a safe end-of-day boundary
 no_new_entries_after: "23:00"
+# Absolute dollar profit/loss targets (optional). Set to enable "invest $100, make $10" philosophy.
+# daily_profit_target_usd: 10.0   # hard lock when daily P&L reaches +$10
+# daily_loss_limit_usd: 5.0       # hard lock when daily loss reaches -$5

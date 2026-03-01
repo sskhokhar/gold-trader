@@ -13,7 +13,7 @@ from gold_trading_one_trade_per_day.llm_factory import (
     load_llm_runtime_config,
     resolve_llm_route,
 )
-from gold_trading_one_trade_per_day.schemas import MarketSentimentReport, StrategyIntent
+from gold_trading_one_trade_per_day.schemas import EventBriefingReport, MarketSentimentReport, StrategyIntent
 from gold_trading_one_trade_per_day.tools.alpaca_tools import AlpacaDataTool
 
 
@@ -85,6 +85,38 @@ class GoldTradingOneTradePerDayCrew:
         except Exception as exc:
             return False, f"invalid StrategyIntent: {exc}"
 
+    @staticmethod
+    def _validate_event_briefing(task_output):
+        try:
+            if task_output.pydantic:
+                model = EventBriefingReport.model_validate(task_output.pydantic.model_dump())
+            else:
+                model = EventBriefingReport.model_validate_json(task_output.raw)
+            return True, model.model_dump_json()
+        except Exception as exc:
+            return False, f"invalid EventBriefingReport: {exc}"
+
+    @agent
+    def event_briefing_analyst(self) -> Agent:
+        return Agent(
+            config=self.agents_config["event_briefing_analyst"],
+            tools=[],
+            allow_delegation=False,
+            reasoning=False,
+            max_iter=2,
+            max_rpm=self.runtime_cfg.agent_max_rpm,
+            llm=self._analyst_llm(),
+        )
+
+    @task
+    def produce_event_briefing(self) -> Task:
+        return Task(
+            config=self.tasks_config["produce_event_briefing"],
+            output_pydantic=EventBriefingReport,
+            guardrail=self._validate_event_briefing,
+            markdown=False,
+        )
+
     @agent
     def market_sentiment_analyst(self) -> Agent:
         return Agent(
@@ -130,14 +162,38 @@ class GoldTradingOneTradePerDayCrew:
     @crew
     def crew(self) -> Crew:
         return Crew(
-            agents=self.agents,
-            tasks=self.tasks,
+            agents=[self.market_sentiment_analyst(), self.strategy_composer()],
+            tasks=[self.analyze_market_sentiment(), self.compose_strategy_intent()],
             process=Process.sequential,
             verbose=True,
             chat_llm=self._strategy_llm(),
             cache=True,
             max_rpm=self.runtime_cfg.crew_max_rpm,
         )
+
+    def spike_crew(self) -> Crew:
+        """3-task pipeline: event briefing → sentiment → strategy intent."""
+        return Crew(
+            agents=[
+                self.event_briefing_analyst(),
+                self.market_sentiment_analyst(),
+                self.strategy_composer(),
+            ],
+            tasks=[
+                self.produce_event_briefing(),
+                self.analyze_market_sentiment(),
+                self.compose_strategy_intent(),
+            ],
+            process=Process.sequential,
+            verbose=True,
+            chat_llm=self._strategy_llm(),
+            cache=True,
+            max_rpm=self.runtime_cfg.crew_max_rpm,
+        )
+
+    def kickoff_spike_mode(self, inputs: dict) -> object:
+        """Run the 3-task spike mode pipeline with event briefing pre-analysis."""
+        return self.spike_crew().kickoff(inputs=inputs)
 
     def kickoff_strategy_only(self, inputs: dict) -> object:
         strategy_agent = self.strategy_composer()

@@ -36,6 +36,8 @@ class RiskConfig:
     max_spread: float = 0.50
     intent_ttl_seconds: int = 45
     no_new_entries_after: time = time(15, 30)
+    daily_profit_target_usd: float | None = None
+    daily_loss_limit_usd: float | None = None
 
 
 def _parse_time(value: str | time) -> time:
@@ -92,6 +94,9 @@ def load_risk_config(
                 continue
             if key == "no_new_entries_after":
                 final[key] = _parse_time(profile_data[key])
+            elif key in {"daily_profit_target_usd", "daily_loss_limit_usd"}:
+                val = profile_data[key]
+                final[key] = _to_float(val, 0.0) if val is not None else None
             elif isinstance(final[key], int):
                 final[key] = _to_int(profile_data[key], final[key])
             elif isinstance(final[key], float):
@@ -108,6 +113,8 @@ def load_risk_config(
         "max_spread": "RISK_MAX_SPREAD",
         "intent_ttl_seconds": "RISK_INTENT_TTL_SECONDS",
         "no_new_entries_after": "RISK_NO_NEW_ENTRIES_AFTER",
+        "daily_profit_target_usd": "DAILY_PROFIT_TARGET_USD",
+        "daily_loss_limit_usd": "DAILY_LOSS_LIMIT_USD",
     }
 
     env_used = False
@@ -118,6 +125,8 @@ def load_risk_config(
         env_used = True
         if key == "no_new_entries_after":
             final[key] = _parse_time(raw)
+        elif key in {"daily_profit_target_usd", "daily_loss_limit_usd"}:
+            final[key] = _to_float(raw, final[key])
         elif isinstance(final[key], int):
             final[key] = _to_int(raw, final[key])
         elif isinstance(final[key], float):
@@ -144,6 +153,7 @@ class RiskEngine:
         day_state.equity_change_pct = (
             (current_equity - day_state.day_start_equity) / day_state.day_start_equity
         )
+        day_state.dollar_pnl = current_equity - day_state.day_start_equity
 
         if day_state.equity_change_pct >= self.config.daily_hard_lock_pct:
             day_state.hard_lock = True
@@ -157,6 +167,15 @@ class RiskEngine:
             day_state.soft_lock = True
             if not day_state.last_lock_reason:
                 day_state.last_lock_reason = "soft_profit_lock"
+
+        if self.config.daily_profit_target_usd is not None and day_state.dollar_pnl >= self.config.daily_profit_target_usd:
+            day_state.hard_lock = True
+            day_state.soft_lock = True
+            day_state.last_lock_reason = "dollar_profit_target_reached"
+        if self.config.daily_loss_limit_usd is not None and day_state.dollar_pnl <= -self.config.daily_loss_limit_usd:
+            day_state.hard_lock = True
+            day_state.last_lock_reason = "dollar_loss_limit_reached"
+
         return day_state
 
     def evaluate(

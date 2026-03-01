@@ -15,6 +15,7 @@ from gold_trading_one_trade_per_day.benchmark_models import (
     parse_models_arg,
     run_model_benchmark,
 )
+from gold_trading_one_trade_per_day.calendar_service import CalendarService, DailyCalendar
 from gold_trading_one_trade_per_day.crew import GoldTradingOneTradePerDayCrew
 from gold_trading_one_trade_per_day.event_calendar import EventCalendar
 from gold_trading_one_trade_per_day.event_trigger import (
@@ -33,6 +34,7 @@ from gold_trading_one_trade_per_day.recovery import reconcile_startup
 from gold_trading_one_trade_per_day.risk_engine import RiskEngine
 from gold_trading_one_trade_per_day.schemas import (
     DataSource,
+    EventBriefingReport,
     IntentState,
     MarketSentimentReport,
     StrategyIntent,
@@ -57,6 +59,32 @@ _LAST_REST_FALLBACK_AT: datetime | None = None
 
 def _now_ny() -> datetime:
     return datetime.now(tz=NY_TZ)
+
+
+def determine_trading_mode(calendar: DailyCalendar, now: datetime) -> str:
+    """Return "spike" if within a news event window, "daily_scalp" otherwise.
+
+    Spike mode activates SPIKE_PRE_EVENT_MINUTES before a high-impact event and
+    stays active for SPIKE_POST_EVENT_MINUTES after the release time.
+    """
+    if not _env_true("SPIKE_MODE_ENABLED", "true"):
+        return "daily_scalp"
+    if not calendar.has_high_impact:
+        return "daily_scalp"
+
+    pre_minutes = int(os.getenv("SPIKE_PRE_EVENT_MINUTES", "5"))
+    post_minutes = int(os.getenv("SPIKE_POST_EVENT_MINUTES", "30"))
+
+    now_utc = now.astimezone(timezone.utc)
+    for event in calendar.events:
+        if event.impact != "high":
+            continue
+        release = event.release_time.astimezone(timezone.utc)
+        window_start = release - timedelta(minutes=pre_minutes)
+        window_end = release + timedelta(minutes=post_minutes)
+        if window_start <= now_utc <= window_end:
+            return "spike"
+    return "daily_scalp"
 
 
 def _extract_task_model(task_output, model_type):
@@ -357,6 +385,36 @@ def _run_cycle(
     if snapshot is None:
         return snapshot_meta
 
+    # Determine trading mode (spike vs daily_scalp) using economic calendar service
+    calendar_service = CalendarService()
+    try:
+        daily_calendar = calendar_service.get_calendar(now=_now_ny().astimezone(timezone.utc))
+    except Exception:
+        daily_calendar = None
+
+    trading_mode = "daily_scalp"
+    active_event = None
+    if daily_calendar is not None:
+        trading_mode = determine_trading_mode(daily_calendar, _now_ny())
+        if trading_mode == "spike":
+            active_event = daily_calendar.next_event
+
+    if not _env_true("DAILY_SCALP_ENABLED", "true") and trading_mode == "daily_scalp":
+        return {
+            "status": "skipped",
+            "reason": "daily_scalp_disabled",
+            "trading_mode": trading_mode,
+        }
+
+    # Apply mode-specific risk parameters
+    if trading_mode == "spike":
+        spike_risk_pct = float(os.getenv("SPIKE_RISK_PER_TRADE_PCT", "0.03"))
+        risk_engine.config.per_trade_risk_pct = spike_risk_pct
+    else:
+        scalp_risk_pct_raw = os.getenv("DAILY_SCALP_RISK_PER_TRADE_PCT")
+        if scalp_risk_pct_raw:
+            risk_engine.config.per_trade_risk_pct = float(scalp_risk_pct_raw)
+
     event_id = str(uuid.uuid4())
     state_store.record_event(event_id=event_id, symbol="XAU_USD", snapshot=snapshot.model_dump(mode="json"))
     state_store.upsert_latency_metric(
@@ -365,6 +423,7 @@ def _run_cycle(
         degraded_mode=latency_policy.degraded_mode,
         metadata_patch={
             "mode": mode,
+            "trading_mode": trading_mode,
             "latency_policy_reason": latency_policy.reason_code,
             "latency_policy_p95_ms": latency_policy.p95_signal_to_fill_ms,
             "latency_policy_window_size": latency_policy.sample_size,
@@ -374,6 +433,16 @@ def _run_cycle(
         },
     )
 
+    # Feature 7: post-spike confirmation delay — wait before running agent pipeline
+    if trading_mode == "spike":
+        spike_confirmation_delay = int(os.getenv("SPIKE_CONFIRMATION_DELAY_SEC", "30"))
+        if spike_confirmation_delay > 0:
+            time_module.sleep(spike_confirmation_delay)
+            # Re-fetch snapshot for fresh prices after the delay
+            snapshot, snapshot_meta = _build_snapshot(mode=mode, calendar=calendar)
+            if snapshot is None:
+                return snapshot_meta
+
     triggered, reason, trigger_context = should_wake_ai(
         snapshot,
         day_state,
@@ -381,6 +450,7 @@ def _run_cycle(
         open_warmup_minutes=int(os.getenv("OPEN_WARMUP_MINUTES", "5")),
         macro_event_active=bool(snapshot_meta.get("macro_event_active")),
         macro_event_label=snapshot_meta.get("macro_event_label"),
+        trading_mode=trading_mode,
     )
     force_trigger_applied = False
     force_trigger_original_reason: str | None = None
@@ -400,6 +470,7 @@ def _run_cycle(
             "stream_health": snapshot_meta.get("stream_health", {}),
             "macro_event_active": snapshot_meta.get("macro_event_active", False),
             "macro_event_label": snapshot_meta.get("macro_event_label"),
+            "trading_mode": trading_mode,
             "llm_route": {
                 "analyst_model": llm_settings["analyst_model"],
                 "strategy_model": llm_settings["strategy_model"],
@@ -469,7 +540,7 @@ def _run_cycle(
             "force_trigger_applied": force_trigger_applied,
         }
 
-    estimated_requests = 1 if analysis_cache_hit else 2
+    estimated_requests = 1 if analysis_cache_hit else (3 if trading_mode == "spike" else 2)
     reservation = quota_guard.reserve(
         event_id=event_id,
         estimated_requests=estimated_requests,
@@ -503,12 +574,20 @@ def _run_cycle(
 
     intent_ttl_seconds = int(os.getenv("INTENT_TTL_SECONDS", "45"))
     now_for_prompt = _now_ny()
+    # Build event data JSON for spike mode
+    event_data_json = "{}"
+    event_briefing_json = "{}"
+    if trading_mode == "spike" and active_event is not None:
+        event_data_json = active_event.model_dump_json()
     inputs = {
         "event_id": event_id,
         "feature_snapshot_json": snapshot.model_dump_json(),
         "symbol": "XAU_USD",
         "current_utc_iso": _utc_iso(now_for_prompt),
         "intent_ttl_seconds": intent_ttl_seconds,
+        "event_data_json": event_data_json,
+        "event_briefing_json": event_briefing_json,
+        "trading_mode": trading_mode,
     }
     if analysis_cache_hit and cached_report is not None:
         inputs["cached_market_report_json"] = cached_report.model_dump_json()
@@ -520,12 +599,18 @@ def _run_cycle(
         llm_start_at=llm_start_at,
         metadata_patch={
             "analysis_cache_hit": analysis_cache_hit,
+            "trading_mode": trading_mode,
         },
     )
     try:
         if analysis_cache_hit:
             backoff_result = _kickoff_with_backoff(
                 kickoff_fn=lambda: llm_runner.kickoff_strategy_only(inputs),
+                deadline=deadline,
+            )
+        elif trading_mode == "spike":
+            backoff_result = _kickoff_with_backoff(
+                kickoff_fn=lambda: llm_runner.kickoff_spike_mode(inputs),
                 deadline=deadline,
             )
         else:
@@ -643,6 +728,28 @@ def _run_cycle(
                 "report_id": str(uuid.uuid4()),
                 "generated_at": _now_ny(),
             }
+        )
+    elif trading_mode == "spike":
+        # Spike mode: 3-task pipeline — briefing(0), sentiment(1), intent(2)
+        if len(crew_output.tasks_output) < 3:
+            state_store.update_event(event_id, status="error:crew_output_missing_tasks")
+            return {
+                "status": "error",
+                "reason": "crew_output_missing_tasks",
+                "event_id": event_id,
+            }
+        _extract_task_model(crew_output.tasks_output[0], EventBriefingReport)
+        market_report = _extract_task_model(
+            crew_output.tasks_output[1], MarketSentimentReport
+        )
+        strategy_intent = _extract_task_model(
+            crew_output.tasks_output[2], StrategyIntent
+        )
+        analysis_cache.put(
+            cache_key=cache_key,
+            model_name=llm_settings["analyst_model"],
+            report=market_report,
+            now=_now_ny(),
         )
     else:
         if len(crew_output.tasks_output) < 2:
@@ -846,6 +953,7 @@ def _run_cycle(
         "status": report.status,
         "event_id": event_id,
         "intent_id": strategy_intent.intent_id,
+        "trading_mode": trading_mode,
         "fallback_used": snapshot_meta.get("fallback_used", False),
         "execution": report.model_dump(mode="json"),
         "recovery": recovery_summary,
@@ -858,6 +966,13 @@ def _run_cycle(
 
 def run_shadow() -> None:
     print(json.dumps(_run_cycle("shadow"), indent=2))
+
+
+def run_auto() -> None:
+    from gold_trading_one_trade_per_day.scheduler import run_auto_scheduler
+    args = _commandless_args()
+    mode = args[0] if args else os.getenv("AUTO_MODE", "shadow")
+    run_auto_scheduler(mode=mode)
 
 
 def run_shadow_loop() -> None:
@@ -953,6 +1068,7 @@ def _commandless_args() -> list[str]:
         "run_paper",
         "run_paper_smoke",
         "run_live",
+        "run_auto",
         "warmup",
         "benchmark_models",
         "resume",
@@ -1029,6 +1145,7 @@ def main() -> None:
             "run_paper",
             "run_paper_smoke",
             "run_live",
+            "run_auto",
             "warmup",
             "benchmark_models",
             "resume",
@@ -1056,6 +1173,8 @@ def main() -> None:
         run_paper_smoke()
     elif command == "run_live":
         run_live()
+    elif command == "run_auto":
+        run_auto()
     elif command == "warmup":
         warmup()
     elif command == "benchmark_models":
