@@ -1,0 +1,422 @@
+======================================================================
+PAPER TRADING SIMULATION REPORT
+======================================================================
+Starting Capital: $100.00
+Risk Per Trade:   2.0%
+Min Confidence:   0.35
+Min R:R:          1.3
+
+----------------------------------------------------------------------
+SCENARIO BREAKDOWN
+----------------------------------------------------------------------
+
+  Trend Up: Strong bullish trend day (~$20-40 move up)
+    Trades: 12  |  Win Rate: 25.0%  |  P&L: $-10.12  |  Return: -10.12%
+    Max DD: 10.12%  |  Sharpe: -19.63  |  PF: 0.49
+    Final Equity: $89.88
+
+  Trend Down: Strong bearish trend day (~$20-40 move down)
+    Trades: 9  |  Win Rate: 11.1%  |  P&L: $-13.64  |  Return: -13.65%
+    Max DD: 13.65%  |  Sharpe: -33.25  |  PF: 0.22
+    Final Equity: $86.35
+
+  Range Day: Low-volatility range-bound day
+    Trades: 6  |  Win Rate: 33.3%  |  P&L: $-5.78  |  Return: -5.79%
+    Max DD: 6.95%  |  Sharpe: -18.16  |  PF: 0.40
+    Final Equity: $94.21
+
+  Volatile Event: High-vol event day (NFP/FOMC-like)
+    Trades: 12  |  Win Rate: 16.7%  |  P&L: $-14.72  |  Return: -14.72%
+    Max DD: 18.52%  |  Sharpe: -32.36  |  PF: 0.28
+    Final Equity: $85.28
+
+  Multi-Day Mix: 30-day mixed conditions (trend + range + events)
+    Trades: 326  |  Win Rate: 31.6%  |  P&L: $-90.97  |  Return: -90.88%
+    Max DD: 91.57%  |  Sharpe: -14.40  |  PF: 0.54
+    Final Equity: $9.12
+
+----------------------------------------------------------------------
+AGGREGATE PERFORMANCE
+----------------------------------------------------------------------
+Total Trades:        365
+Total Wins:          111
+Total Losses:        254
+Overall Win Rate:    30.4%
+Total P&L:           $-135.23
+Avg P&L Per Trade:   $-0.37
+Avg Profit Factor:   0.38
+Worst Drawdown:      91.57%
+Avg Sharpe Ratio:    -23.56
+======================================================================
+
+====================================================================================================
+DETAILED TRADE LOG
+====================================================================================================
+  # Scenario        Side  Setup                       Entry       Exit         SL         TP      P&L Exit Reason 
+----------------------------------------------------------------------------------------------------
+  1 Trend Up        BUY   trend_continuation     $  2655.12 $  2653.47 $  2653.74 $  2657.15 $  -2.39 sl_hit      
+  2 Trend Up        BUY   pivot_bounce           $  2654.31 $  2652.92 $  2653.19 $  2655.74 $  -2.42 sl_hit      
+  3 Trend Up        SELL  breakout               $  2647.43 $  2650.20 $  2649.94 $  2642.19 $  -2.10 sl_hit      
+  4 Trend Up        SELL  vwap_bounce            $  2650.59 $  2652.42 $  2652.15 $  2647.72 $  -2.18 sl_hit      
+  5 Trend Up        BUY   trend_continuation     $  2655.50 $  2659.47 $  2653.46 $  2659.74 $   3.55 tp_hit      
+  6 Trend Up        BUY   trend_continuation     $  2661.65 $  2659.30 $  2659.57 $  2665.99 $  -2.13 sl_hit      
+  7 Trend Up        BUY   trend_continuation     $  2659.76 $  2664.20 $  2657.53 $  2664.47 $   3.69 tp_hit      
+  8 Trend Up        BUY   pivot_bounce           $  2661.12 $  2658.91 $  2659.18 $  2664.94 $  -2.18 sl_hit      
+  9 Trend Up        SELL  vwap_bounce            $  2658.73 $  2660.95 $  2660.68 $  2654.91 $  -2.13 sl_hit      
+ 10 Trend Up        BUY   vwap_bounce            $  2661.10 $  2663.33 $  2659.45 $  2663.60 $   2.49 tp_hit      
+ 11 Trend Up        BUY   vwap_bounce            $  2662.49 $  2660.49 $  2660.76 $  2665.14 $  -2.17 sl_hit      
+ 12 Trend Up        SELL  vwap_bounce            $  2660.58 $  2662.45 $  2662.18 $  2658.19 $  -2.15 sl_hit      
+ 13 Trend Down      SELL  vwap_bounce            $  2646.74 $  2648.16 $  2647.90 $  2645.52 $  -2.45 sl_hit      
+ 14 Trend Down      BUY   vwap_bounce            $  2647.44 $  2645.98 $  2646.24 $  2649.06 $  -2.38 sl_hit      
+ 15 Trend Down      BUY   trend_continuation     $  2657.36 $  2655.11 $  2655.38 $  2661.44 $  -2.16 sl_hit      
+ 16 Trend Down      SELL  vwap_bounce            $  2653.92 $  2655.99 $  2655.72 $  2650.46 $  -2.14 sl_hit      
+ 17 Trend Down      SELL  trend_continuation     $  2654.42 $  2648.95 $  2657.05 $  2648.69 $   3.79 tp_hit      
+ 18 Trend Down      SELL  trend_continuation     $  2648.46 $  2651.02 $  2650.75 $  2644.48 $  -2.11 sl_hit      
+ 19 Trend Down      SELL  trend_continuation     $  2649.68 $  2652.14 $  2651.87 $  2645.92 $  -2.07 sl_hit      
+ 20 Trend Down      BUY   vwap_bounce            $  2655.72 $  2653.78 $  2654.05 $  2658.25 $  -2.10 sl_hit      
+ 21 Trend Down      BUY   vwap_bounce            $  2655.47 $  2653.35 $  2653.62 $  2658.36 $  -2.02 sl_hit      
+ 22 Range Day       BUY   pivot_bounce           $  2655.19 $  2655.49 $  2654.50 $  2655.76 $   0.90 tp_hit      
+ 23 Range Day       SELL  pivot_bounce           $  2654.12 $  2655.44 $  2655.17 $  2652.48 $  -2.53 sl_hit      
+ 24 Range Day       SELL  trend_continuation     $  2652.61 $  2651.00 $  2653.72 $  2650.73 $   2.88 tp_hit      
+ 25 Range Day       SELL  trend_continuation     $  2649.87 $  2651.60 $  2651.33 $  2648.32 $  -2.39 sl_hit      
+ 26 Range Day       BUY   vwap_bounce            $  2653.00 $  2651.37 $  2651.64 $  2655.38 $  -2.36 sl_hit      
+ 27 Range Day       BUY   trend_continuation     $  2656.05 $  2654.32 $  2654.59 $  2658.82 $  -2.28 sl_hit      
+ 28 Volatile Event  BUY   vwap_bounce            $  2652.78 $  2650.76 $  2651.03 $  2655.47 $  -2.30 sl_hit      
+ 29 Volatile Event  SELL  pivot_bounce           $  2650.41 $  2652.15 $  2651.88 $  2648.28 $  -2.31 sl_hit      
+ 30 Volatile Event  SELL  breakout               $  2649.03 $  2651.28 $  2651.01 $  2645.85 $  -2.16 sl_hit      
+ 31 Volatile Event  SELL  breakout               $  2648.59 $  2650.82 $  2650.55 $  2645.45 $  -2.12 sl_hit      
+ 32 Volatile Event  BUY   vwap_bounce            $  2652.00 $  2649.38 $  2649.64 $  2655.68 $  -2.03 sl_hit      
+ 33 Volatile Event  BUY   vwap_bounce            $  2651.44 $  2648.52 $  2648.78 $  2657.02 $  -1.96 sl_hit      
+ 34 Volatile Event  SELL  vwap_bounce            $  2650.07 $  2652.96 $  2652.69 $  2644.59 $  -1.92 sl_hit      
+ 35 Volatile Event  BUY   vwap_bounce            $  2650.57 $  2647.80 $  2648.06 $  2655.78 $  -1.88 sl_hit      
+ 36 Volatile Event  SELL  vwap_bounce            $  2649.14 $  2651.99 $  2651.72 $  2643.73 $  -1.84 sl_hit      
+ 37 Volatile Event  BUY   vwap_bounce            $  2651.94 $  2658.04 $  2648.68 $  2658.31 $   3.06 tp_hit      
+ 38 Volatile Event  SELL  pivot_bounce           $  2650.25 $  2653.01 $  2652.74 $  2646.08 $  -1.87 sl_hit      
+ 39 Volatile Event  BUY   vwap_bounce            $  2653.58 $  2657.53 $  2651.07 $  2657.80 $   2.61 tp_hit      
+ 40 Multi-Day Mix   SELL  vwap_bounce            $  2650.47 $  2648.49 $  2651.99 $  2648.23 $   2.61 tp_hit      
+ 41 Multi-Day Mix   BUY   vwap_bounce            $  2651.57 $  2649.74 $  2650.00 $  2653.89 $  -2.40 sl_hit      
+ 42 Multi-Day Mix   BUY   trend_continuation     $  2654.61 $  2662.31 $  2651.10 $  2662.58 $   4.41 tp_hit      
+ 43 Multi-Day Mix   BUY   breakout               $  2665.04 $  2661.00 $  2661.27 $  2673.33 $  -2.24 sl_hit      
+ 44 Multi-Day Mix   BUY   vwap_bounce            $  2656.66 $  2653.30 $  2653.57 $  2663.29 $  -2.22 sl_hit      
+ 45 Multi-Day Mix   BUY   breakout               $  2663.50 $  2657.91 $  2658.18 $  2675.56 $  -2.10 sl_hit      
+ 46 Multi-Day Mix   BUY   vwap_bounce            $  2661.95 $  2658.91 $  2659.18 $  2666.69 $  -2.15 sl_hit      
+ 47 Multi-Day Mix   BUY   pivot_bounce           $  2665.78 $  2670.30 $  2662.98 $  2670.57 $   3.10 tp_hit      
+ 48 Multi-Day Mix   SELL  vwap_bounce            $  2671.44 $  2672.83 $  2672.56 $  2670.02 $  -2.45 sl_hit      
+ 49 Multi-Day Mix   BUY   pivot_bounce           $  2673.41 $  2672.15 $  2672.42 $  2674.58 $  -2.45 sl_hit      
+ 50 Multi-Day Mix   SELL  breakout               $  2666.09 $  2664.19 $  2667.58 $  2663.92 $   2.41 tp_hit      
+ 51 Multi-Day Mix   SELL  trend_continuation     $  2659.64 $  2661.58 $  2661.31 $  2657.59 $  -2.24 sl_hit      
+ 52 Multi-Day Mix   BUY   vwap_bounce            $  2662.74 $  2664.86 $  2661.38 $  2665.13 $   2.96 tp_hit      
+ 53 Multi-Day Mix   SELL  vwap_bounce            $  2661.76 $  2663.55 $  2663.28 $  2658.98 $  -2.29 sl_hit      
+ 54 Multi-Day Mix   SELL  vwap_bounce            $  2661.27 $  2663.14 $  2662.87 $  2658.29 $  -2.22 sl_hit      
+ 55 Multi-Day Mix   SELL  vwap_bounce            $  2659.06 $  2655.30 $  2661.09 $  2655.03 $   3.45 tp_hit      
+ 56 Multi-Day Mix   SELL  breakout               $  2654.96 $  2649.14 $  2657.83 $  2648.88 $   3.91 tp_hit      
+ 57 Multi-Day Mix   SELL  trend_continuation     $  2643.16 $  2639.77 $  2645.30 $  2639.51 $   3.16 tp_hit      
+ 58 Multi-Day Mix   SELL  breakout               $  2636.30 $  2635.44 $  2637.25 $  2635.18 $   1.85 tp_hit      
+ 59 Multi-Day Mix   BUY   vwap_bounce            $  2636.65 $  2637.01 $  2635.95 $  2637.27 $   1.05 tp_hit      
+ 60 Multi-Day Mix   SELL  pivot_bounce           $  2634.74 $  2635.74 $  2635.48 $  2634.05 $  -2.88 sl_hit      
+ 61 Multi-Day Mix   BUY   vwap_bounce            $  2633.62 $  2632.21 $  2632.47 $  2635.55 $  -2.54 sl_hit      
+ 62 Multi-Day Mix   BUY   vwap_bounce            $  2633.30 $  2631.95 $  2632.21 $  2635.06 $  -2.50 sl_hit      
+ 63 Multi-Day Mix   SELL  breakout               $  2632.12 $  2633.92 $  2633.66 $  2629.24 $  -2.30 sl_hit      
+ 64 Multi-Day Mix   SELL  vwap_bounce            $  2631.95 $  2633.43 $  2633.17 $  2629.85 $  -2.33 sl_hit      
+ 65 Multi-Day Mix   BUY   trend_continuation     $  2640.25 $  2642.84 $  2638.77 $  2643.10 $   3.26 tp_hit      
+ 66 Multi-Day Mix   SELL  vwap_bounce            $  2641.98 $  2643.13 $  2642.87 $  2640.98 $  -2.51 sl_hit      
+ 67 Multi-Day Mix   SELL  vwap_bounce            $  2642.50 $  2643.76 $  2643.50 $  2641.29 $  -2.38 sl_hit      
+ 68 Multi-Day Mix   BUY   vwap_bounce            $  2643.11 $  2641.60 $  2641.86 $  2644.48 $  -2.23 sl_hit      
+ 69 Multi-Day Mix   SELL  vwap_bounce            $  2642.97 $  2641.17 $  2644.39 $  2640.91 $   2.26 tp_hit      
+ 70 Multi-Day Mix   SELL  vwap_bounce            $  2642.27 $  2644.21 $  2643.95 $  2639.70 $  -2.13 sl_hit      
+ 71 Multi-Day Mix   BUY   trend_continuation     $  2646.13 $  2643.87 $  2644.13 $  2649.49 $  -2.03 sl_hit      
+ 72 Multi-Day Mix   BUY   trend_continuation     $  2647.06 $  2644.73 $  2644.99 $  2650.58 $  -1.98 sl_hit      
+ 73 Multi-Day Mix   BUY   breakout               $  2645.47 $  2642.94 $  2643.20 $  2649.23 $  -1.92 sl_hit      
+ 74 Multi-Day Mix   BUY   vwap_bounce            $  2644.92 $  2643.02 $  2643.28 $  2647.42 $  -1.95 sl_hit      
+ 75 Multi-Day Mix   BUY   trend_continuation     $  2651.49 $  2648.52 $  2648.78 $  2657.44 $  -1.80 sl_hit      
+ 76 Multi-Day Mix   BUY   trend_continuation     $  2650.67 $  2647.76 $  2648.02 $  2656.45 $  -1.76 sl_hit      
+ 77 Multi-Day Mix   BUY   pivot_bounce           $  2649.98 $  2647.52 $  2647.78 $  2654.47 $  -1.76 sl_hit      
+ 78 Multi-Day Mix   SELL  vwap_bounce            $  2647.73 $  2642.79 $  2650.22 $  2642.53 $   3.03 tp_hit      
+ 79 Multi-Day Mix   SELL  trend_continuation     $  2641.05 $  2644.74 $  2644.48 $  2633.23 $  -1.72 sl_hit      
+ 80 Multi-Day Mix   BUY   pivot_bounce           $  2650.92 $  2647.83 $  2648.09 $  2656.90 $  -1.71 sl_hit      
+ 81 Multi-Day Mix   SELL  breakout               $  2644.97 $  2649.45 $  2649.19 $  2635.55 $  -1.62 sl_hit      
+ 82 Multi-Day Mix   SELL  breakout               $  2643.94 $  2648.90 $  2648.64 $  2633.36 $  -1.58 sl_hit      
+ 83 Multi-Day Mix   SELL  vwap_bounce            $  2648.94 $  2641.62 $  2652.48 $  2641.36 $   3.01 tp_hit      
+ 84 Multi-Day Mix   SELL  breakout               $  2639.64 $  2628.44 $  2644.69 $  2628.18 $   3.37 tp_hit      
+ 85 Multi-Day Mix   SELL  trend_continuation     $  2639.23 $  2643.70 $  2643.44 $  2629.44 $  -1.69 sl_hit      
+ 86 Multi-Day Mix   SELL  vwap_bounce            $  2643.11 $  2646.64 $  2646.38 $  2637.35 $  -1.68 sl_hit      
+ 87 Multi-Day Mix   SELL  vwap_bounce            $  2639.18 $  2642.24 $  2641.98 $  2634.36 $  -1.67 sl_hit      
+ 88 Multi-Day Mix   BUY   trend_continuation     $  2645.42 $  2643.85 $  2644.11 $  2647.35 $  -1.79 sl_hit      
+ 89 Multi-Day Mix   SELL  vwap_bounce            $  2642.92 $  2644.27 $  2644.01 $  2641.52 $  -1.80 sl_hit      
+ 90 Multi-Day Mix   BUY   vwap_bounce            $  2643.85 $  2642.49 $  2642.75 $  2645.27 $  -1.76 sl_hit      
+ 91 Multi-Day Mix   SELL  trend_continuation     $  2634.96 $  2631.36 $  2636.84 $  2631.10 $   2.64 tp_hit      
+ 92 Multi-Day Mix   SELL  breakout               $  2628.84 $  2631.52 $  2631.26 $  2623.82 $  -1.59 sl_hit      
+ 93 Multi-Day Mix   SELL  trend_continuation     $  2623.45 $  2625.97 $  2625.71 $  2618.62 $  -1.57 sl_hit      
+ 94 Multi-Day Mix   SELL  trend_continuation     $  2622.41 $  2625.13 $  2624.87 $  2617.07 $  -1.52 sl_hit      
+ 95 Multi-Day Mix   BUY   vwap_bounce            $  2627.98 $  2625.64 $  2625.90 $  2632.18 $  -1.51 sl_hit      
+ 96 Multi-Day Mix   BUY   trend_continuation     $  2631.67 $  2636.38 $  2628.90 $  2636.64 $   2.22 tp_hit      
+ 97 Multi-Day Mix   BUY   trend_continuation     $  2634.74 $  2632.37 $  2632.63 $  2638.34 $  -1.52 sl_hit      
+ 98 Multi-Day Mix   SELL  pivot_bounce           $  2627.65 $  2627.36 $  2628.32 $  2627.10 $   0.56 tp_hit      
+ 99 Multi-Day Mix   SELL  pivot_bounce           $  2627.40 $  2627.02 $  2628.11 $  2626.76 $   0.70 tp_hit      
+100 Multi-Day Mix   SELL  breakout               $  2624.72 $  2623.78 $  2625.71 $  2623.52 $   1.27 tp_hit      
+101 Multi-Day Mix   SELL  breakout               $  2620.93 $  2622.69 $  2622.43 $  2618.15 $  -1.62 sl_hit      
+102 Multi-Day Mix   SELL  vwap_bounce            $  2623.15 $  2624.50 $  2624.24 $  2622.14 $  -1.67 sl_hit      
+103 Multi-Day Mix   SELL  vwap_bounce            $  2624.12 $  2622.00 $  2625.46 $  2621.74 $   2.06 tp_hit      
+104 Multi-Day Mix   SELL  trend_continuation     $  2619.88 $  2621.63 $  2621.37 $  2617.57 $  -1.59 sl_hit      
+105 Multi-Day Mix   SELL  trend_continuation     $  2619.77 $  2621.51 $  2621.25 $  2617.48 $  -1.55 sl_hit      
+106 Multi-Day Mix   SELL  vwap_bounce            $  2620.10 $  2620.95 $  2620.69 $  2619.80 $  -1.86 sl_hit      
+107 Multi-Day Mix   BUY   vwap_bounce            $  2621.41 $  2621.73 $  2620.73 $  2621.99 $   0.58 tp_hit      
+108 Multi-Day Mix   BUY   vwap_bounce            $  2624.42 $  2623.13 $  2623.39 $  2626.03 $  -1.58 sl_hit      
+109 Multi-Day Mix   BUY   vwap_bounce            $  2624.19 $  2622.93 $  2623.19 $  2625.73 $  -1.55 sl_hit      
+110 Multi-Day Mix   SELL  vwap_bounce            $  2623.63 $  2624.90 $  2624.64 $  2622.06 $  -1.51 sl_hit      
+111 Multi-Day Mix   SELL  vwap_bounce            $  2630.01 $  2631.73 $  2631.47 $  2627.88 $  -1.38 sl_hit      
+112 Multi-Day Mix   SELL  vwap_bounce            $  2631.11 $  2632.77 $  2632.51 $  2629.08 $  -1.36 sl_hit      
+113 Multi-Day Mix   SELL  vwap_bounce            $  2630.75 $  2632.62 $  2632.36 $  2628.31 $  -1.30 sl_hit      
+114 Multi-Day Mix   SELL  vwap_bounce            $  2631.14 $  2633.01 $  2632.75 $  2628.70 $  -1.27 sl_hit      
+115 Multi-Day Mix   BUY   vwap_bounce            $  2631.72 $  2629.74 $  2630.00 $  2634.37 $  -1.23 sl_hit      
+116 Multi-Day Mix   SELL  trend_continuation     $  2626.41 $  2628.71 $  2628.45 $  2622.96 $  -1.17 sl_hit      
+117 Multi-Day Mix   SELL  breakout               $  2623.72 $  2627.60 $  2627.34 $  2615.77 $  -1.09 sl_hit      
+118 Multi-Day Mix   SELL  vwap_bounce            $  2627.24 $  2630.29 $  2630.03 $  2621.31 $  -1.09 sl_hit      
+119 Multi-Day Mix   SELL  vwap_bounce            $  2627.47 $  2630.47 $  2630.21 $  2621.66 $  -1.07 sl_hit      
+120 Multi-Day Mix   SELL  vwap_bounce            $  2626.42 $  2629.51 $  2629.25 $  2620.40 $  -1.04 sl_hit      
+121 Multi-Day Mix   SELL  vwap_bounce            $  2626.69 $  2621.24 $  2629.39 $  2620.98 $   1.87 tp_hit      
+122 Multi-Day Mix   SELL  breakout               $  2615.94 $  2620.06 $  2619.80 $  2607.40 $  -1.03 sl_hit      
+123 Multi-Day Mix   SELL  breakout               $  2614.77 $  2619.11 $  2618.85 $  2605.69 $  -1.01 sl_hit      
+124 Multi-Day Mix   SELL  vwap_bounce            $  2622.84 $  2626.12 $  2625.86 $  2618.53 $  -1.01 sl_hit      
+125 Multi-Day Mix   BUY   vwap_bounce            $  2617.21 $  2613.59 $  2613.85 $  2623.14 $  -0.98 sl_hit      
+126 Multi-Day Mix   SELL  breakout               $  2608.24 $  2612.82 $  2612.56 $  2600.37 $  -0.94 sl_hit      
+127 Multi-Day Mix   SELL  pivot_bounce           $  2609.31 $  2608.21 $  2610.38 $  2607.95 $   0.89 tp_hit      
+128 Multi-Day Mix   SELL  vwap_bounce            $  2608.05 $  2606.84 $  2609.18 $  2606.58 $   0.95 tp_hit      
+129 Multi-Day Mix   SELL  breakout               $  2606.23 $  2607.98 $  2607.72 $  2604.03 $  -1.06 sl_hit      
+130 Multi-Day Mix   SELL  pivot_bounce           $  2606.95 $  2608.26 $  2608.00 $  2605.62 $  -1.10 sl_hit      
+131 Multi-Day Mix   SELL  pivot_bounce           $  2606.27 $  2605.18 $  2607.34 $  2604.92 $   0.88 tp_hit      
+132 Multi-Day Mix   BUY   trend_continuation     $  2617.46 $  2615.40 $  2615.66 $  2621.13 $  -1.01 sl_hit      
+133 Multi-Day Mix   BUY   vwap_bounce            $  2613.79 $  2611.64 $  2611.90 $  2617.51 $  -0.98 sl_hit      
+134 Multi-Day Mix   SELL  vwap_bounce            $  2612.46 $  2609.27 $  2614.24 $  2609.01 $   1.50 tp_hit      
+135 Multi-Day Mix   SELL  pivot_bounce           $  2609.16 $  2611.55 $  2611.29 $  2605.69 $  -0.98 sl_hit      
+136 Multi-Day Mix   SELL  vwap_bounce            $  2605.71 $  2606.98 $  2606.72 $  2604.47 $  -1.07 sl_hit      
+137 Multi-Day Mix   BUY   vwap_bounce            $  2607.12 $  2608.42 $  2605.95 $  2608.68 $   0.92 tp_hit      
+138 Multi-Day Mix   BUY   trend_continuation     $  2610.81 $  2609.47 $  2609.73 $  2612.26 $  -1.05 sl_hit      
+139 Multi-Day Mix   BUY   breakout               $  2612.06 $  2613.53 $  2610.80 $  2613.79 $   0.96 tp_hit      
+140 Multi-Day Mix   SELL  vwap_bounce            $  2609.88 $  2611.35 $  2611.09 $  2607.81 $  -1.03 sl_hit      
+141 Multi-Day Mix   SELL  vwap_bounce            $  2609.72 $  2611.74 $  2611.48 $  2606.30 $  -0.95 sl_hit      
+142 Multi-Day Mix   BUY   vwap_bounce            $  2610.39 $  2613.45 $  2608.67 $  2613.71 $   1.43 tp_hit      
+143 Multi-Day Mix   BUY   trend_continuation     $  2619.82 $  2617.46 $  2617.72 $  2624.25 $  -0.94 sl_hit      
+144 Multi-Day Mix   BUY   trend_continuation     $  2620.35 $  2624.80 $  2618.14 $  2625.06 $   1.64 tp_hit      
+145 Multi-Day Mix   BUY   pivot_bounce           $  2625.85 $  2623.83 $  2624.09 $  2629.27 $  -0.97 sl_hit      
+146 Multi-Day Mix   BUY   vwap_bounce            $  2623.77 $  2627.35 $  2621.83 $  2627.61 $   1.53 tp_hit      
+147 Multi-Day Mix   SELL  vwap_bounce            $  2624.27 $  2621.30 $  2626.27 $  2621.04 $   1.27 tp_hit      
+148 Multi-Day Mix   BUY   vwap_bounce            $  2625.80 $  2623.94 $  2624.20 $  2628.22 $  -1.03 sl_hit      
+149 Multi-Day Mix   BUY   pivot_bounce           $  2626.11 $  2624.19 $  2624.45 $  2628.65 $  -1.00 sl_hit      
+150 Multi-Day Mix   SELL  breakout               $  2623.09 $  2625.57 $  2625.31 $  2619.44 $  -0.94 sl_hit      
+151 Multi-Day Mix   SELL  vwap_bounce            $  2627.70 $  2627.19 $  2628.61 $  2626.93 $   0.46 tp_hit      
+152 Multi-Day Mix   SELL  trend_continuation     $  2624.09 $  2623.10 $  2625.20 $  2622.84 $   0.74 tp_hit      
+153 Multi-Day Mix   SELL  trend_continuation     $  2622.92 $  2624.41 $  2624.15 $  2621.15 $  -1.03 sl_hit      
+154 Multi-Day Mix   SELL  pivot_bounce           $  2622.81 $  2623.98 $  2623.72 $  2621.78 $  -1.07 sl_hit      
+155 Multi-Day Mix   SELL  trend_continuation     $  2619.81 $  2621.71 $  2621.45 $  2616.55 $  -0.94 sl_hit      
+156 Multi-Day Mix   SELL  trend_continuation     $  2619.62 $  2621.59 $  2621.33 $  2616.19 $  -0.91 sl_hit      
+157 Multi-Day Mix   SELL  breakout               $  2619.00 $  2621.57 $  2621.31 $  2614.25 $  -0.86 sl_hit      
+158 Multi-Day Mix   SELL  vwap_bounce            $  2620.62 $  2622.53 $  2622.27 $  2618.46 $  -0.87 sl_hit      
+159 Multi-Day Mix   BUY   vwap_bounce            $  2621.54 $  2624.58 $  2619.82 $  2624.84 $   1.30 tp_hit      
+160 Multi-Day Mix   BUY   trend_continuation     $  2626.64 $  2624.17 $  2624.43 $  2629.35 $  -0.85 sl_hit      
+161 Multi-Day Mix   BUY   trend_continuation     $  2628.77 $  2626.06 $  2626.32 $  2634.08 $  -0.82 sl_hit      
+162 Multi-Day Mix   SELL  vwap_bounce            $  2622.59 $  2625.06 $  2624.80 $  2618.09 $  -0.81 sl_hit      
+163 Multi-Day Mix   BUY   vwap_bounce            $  2624.27 $  2628.67 $  2622.00 $  2628.93 $   1.38 tp_hit      
+164 Multi-Day Mix   SELL  vwap_bounce            $  2625.41 $  2622.60 $  2627.33 $  2622.34 $   1.08 tp_hit      
+165 Multi-Day Mix   SELL  trend_continuation     $  2617.09 $  2618.52 $  2618.26 $  2615.46 $  -0.93 sl_hit      
+166 Multi-Day Mix   SELL  vwap_bounce            $  2616.95 $  2615.19 $  2618.35 $  2614.93 $   0.93 tp_hit      
+167 Multi-Day Mix   SELL  trend_continuation     $  2613.62 $  2615.66 $  2615.40 $  2610.72 $  -0.87 sl_hit      
+168 Multi-Day Mix   SELL  trend_continuation     $  2613.08 $  2610.18 $  2614.98 $  2609.92 $   1.13 tp_hit      
+169 Multi-Day Mix   BUY   vwap_bounce            $  2613.59 $  2611.63 $  2611.89 $  2616.20 $  -0.88 sl_hit      
+170 Multi-Day Mix   BUY   trend_continuation     $  2623.54 $  2621.15 $  2621.41 $  2626.42 $  -0.84 sl_hit      
+171 Multi-Day Mix   BUY   trend_continuation     $  2626.14 $  2623.39 $  2623.65 $  2631.57 $  -0.81 sl_hit      
+172 Multi-Day Mix   BUY   trend_continuation     $  2625.55 $  2622.75 $  2623.01 $  2631.11 $  -0.79 sl_hit      
+173 Multi-Day Mix   SELL  vwap_bounce            $  2618.90 $  2621.29 $  2621.03 $  2614.60 $  -0.79 sl_hit      
+174 Multi-Day Mix   BUY   vwap_bounce            $  2621.15 $  2618.77 $  2619.03 $  2625.44 $  -0.77 sl_hit      
+175 Multi-Day Mix   BUY   vwap_bounce            $  2616.95 $  2613.36 $  2613.62 $  2624.19 $  -0.72 sl_hit      
+176 Multi-Day Mix   BUY   trend_continuation     $  2661.23 $  2665.06 $  2657.97 $  2667.19 $   0.77 timeout     
+177 Multi-Day Mix   BUY   vwap_bounce            $  2663.55 $  2665.20 $  2662.19 $  2665.47 $   0.82 tp_hit      
+178 Multi-Day Mix   BUY   pivot_bounce           $  2665.92 $  2664.16 $  2664.43 $  2668.09 $  -0.81 sl_hit      
+179 Multi-Day Mix   BUY   vwap_bounce            $  2665.31 $  2667.26 $  2663.80 $  2667.53 $   0.87 tp_hit      
+180 Multi-Day Mix   SELL  breakout               $  2659.73 $  2661.97 $  2661.70 $  2656.59 $  -0.78 sl_hit      
+181 Multi-Day Mix   BUY   vwap_bounce            $  2662.94 $  2661.03 $  2661.30 $  2665.41 $  -0.78 sl_hit      
+182 Multi-Day Mix   SELL  vwap_bounce            $  2661.02 $  2663.26 $  2662.99 $  2658.70 $  -0.74 sl_hit      
+183 Multi-Day Mix   BUY   trend_continuation     $  2668.70 $  2665.29 $  2665.56 $  2675.74 $  -0.70 sl_hit      
+184 Multi-Day Mix   SELL  vwap_bounce            $  2660.22 $  2663.13 $  2662.86 $  2654.69 $  -0.69 sl_hit      
+185 Multi-Day Mix   BUY   vwap_bounce            $  2662.43 $  2659.59 $  2659.86 $  2667.78 $  -0.68 sl_hit      
+186 Multi-Day Mix   SELL  breakout               $  2653.50 $  2657.91 $  2657.64 $  2644.32 $  -0.64 sl_hit      
+187 Multi-Day Mix   BUY   vwap_bounce            $  2659.82 $  2656.44 $  2656.71 $  2666.50 $  -0.64 sl_hit      
+188 Multi-Day Mix   SELL  trend_continuation     $  2649.50 $  2653.21 $  2652.94 $  2643.13 $  -0.62 sl_hit      
+189 Multi-Day Mix   SELL  trend_continuation     $  2651.70 $  2645.84 $  2655.04 $  2645.58 $   0.99 tp_hit      
+190 Multi-Day Mix   BUY   trend_continuation     $  2643.92 $  2642.34 $  2642.60 $  2645.86 $  -0.70 sl_hit      
+191 Multi-Day Mix   SELL  vwap_bounce            $  2641.33 $  2642.77 $  2642.51 $  2639.74 $  -0.69 sl_hit      
+192 Multi-Day Mix   SELL  vwap_bounce            $  2641.14 $  2642.60 $  2642.34 $  2639.52 $  -0.68 sl_hit      
+193 Multi-Day Mix   BUY   trend_continuation     $  2644.13 $  2647.35 $  2642.40 $  2647.61 $   1.00 tp_hit      
+194 Multi-Day Mix   BUY   trend_continuation     $  2650.03 $  2647.58 $  2647.84 $  2652.81 $  -0.63 sl_hit      
+195 Multi-Day Mix   BUY   trend_continuation     $  2647.66 $  2645.26 $  2645.52 $  2652.20 $  -0.62 sl_hit      
+196 Multi-Day Mix   SELL  vwap_bounce            $  2644.78 $  2646.80 $  2646.54 $  2641.39 $  -0.62 sl_hit      
+197 Multi-Day Mix   SELL  vwap_bounce            $  2644.80 $  2646.64 $  2646.38 $  2641.84 $  -0.61 sl_hit      
+198 Multi-Day Mix   BUY   vwap_bounce            $  2649.78 $  2647.48 $  2647.74 $  2653.30 $  -0.58 sl_hit      
+199 Multi-Day Mix   BUY   vwap_bounce            $  2650.00 $  2648.06 $  2648.32 $  2652.58 $  -0.58 sl_hit      
+200 Multi-Day Mix   BUY   trend_continuation     $  2660.49 $  2659.39 $  2659.66 $  2661.11 $  -0.64 sl_hit      
+201 Multi-Day Mix   BUY   trend_continuation     $  2660.88 $  2661.66 $  2659.98 $  2661.93 $   0.42 tp_hit      
+202 Multi-Day Mix   BUY   trend_continuation     $  2660.83 $  2662.55 $  2659.47 $  2662.82 $   0.62 tp_hit      
+203 Multi-Day Mix   SELL  pivot_bounce           $  2657.43 $  2655.40 $  2658.99 $  2655.13 $   0.65 tp_hit      
+204 Multi-Day Mix   BUY   vwap_bounce            $  2657.93 $  2655.68 $  2655.95 $  2661.09 $  -0.58 sl_hit      
+205 Multi-Day Mix   BUY   trend_continuation     $  2670.58 $  2674.87 $  2668.41 $  2675.14 $   0.99 tp_hit      
+206 Multi-Day Mix   BUY   trend_continuation     $  2668.17 $  2665.17 $  2665.44 $  2672.30 $  -0.57 sl_hit      
+207 Multi-Day Mix   BUY   trend_continuation     $  2668.46 $  2665.40 $  2665.67 $  2674.60 $  -0.55 sl_hit      
+208 Multi-Day Mix   BUY   trend_continuation     $  2672.83 $  2679.62 $  2669.68 $  2679.89 $   1.07 tp_hit      
+209 Multi-Day Mix   BUY   trend_continuation     $  2677.73 $  2673.51 $  2673.78 $  2686.84 $  -0.55 sl_hit      
+210 Multi-Day Mix   SELL  trend_continuation     $  2653.82 $  2657.66 $  2657.39 $  2645.70 $  -0.54 sl_hit      
+211 Multi-Day Mix   SELL  trend_continuation     $  2655.67 $  2659.88 $  2659.61 $  2646.58 $  -0.53 sl_hit      
+212 Multi-Day Mix   SELL  breakout               $  2645.49 $  2638.44 $  2649.53 $  2638.18 $   0.84 tp_hit      
+213 Multi-Day Mix   SELL  trend_continuation     $  2642.32 $  2639.05 $  2645.50 $  2636.50 $   0.51 timeout     
+214 Multi-Day Mix   BUY   vwap_bounce            $  2636.62 $  2635.65 $  2635.91 $  2637.25 $  -0.70 sl_hit      
+215 Multi-Day Mix   SELL  vwap_bounce            $  2637.56 $  2638.60 $  2638.34 $  2636.78 $  -0.66 sl_hit      
+216 Multi-Day Mix   BUY   pivot_bounce           $  2642.76 $  2644.14 $  2641.72 $  2644.40 $   0.63 tp_hit      
+217 Multi-Day Mix   SELL  vwap_bounce            $  2639.77 $  2641.46 $  2641.20 $  2638.20 $  -0.59 sl_hit      
+218 Multi-Day Mix   BUY   trend_continuation     $  2646.81 $  2644.83 $  2645.09 $  2649.59 $  -0.56 sl_hit      
+219 Multi-Day Mix   BUY   trend_continuation     $  2645.71 $  2643.88 $  2644.14 $  2648.17 $  -0.55 sl_hit      
+220 Multi-Day Mix   BUY   breakout               $  2646.53 $  2647.73 $  2644.96 $  2648.89 $   0.35 timeout     
+221 Multi-Day Mix   SELL  pivot_bounce           $  2646.15 $  2648.03 $  2647.77 $  2643.70 $  -0.55 sl_hit      
+222 Multi-Day Mix   BUY   breakout               $  2651.66 $  2648.79 $  2649.05 $  2657.11 $  -0.50 sl_hit      
+223 Multi-Day Mix   BUY   vwap_bounce            $  2648.69 $  2646.32 $  2646.58 $  2652.94 $  -0.50 sl_hit      
+224 Multi-Day Mix   BUY   vwap_bounce            $  2648.71 $  2646.11 $  2646.37 $  2653.53 $  -0.49 sl_hit      
+225 Multi-Day Mix   BUY   vwap_bounce            $  2648.87 $  2645.73 $  2645.99 $  2655.00 $  -0.47 sl_hit      
+226 Multi-Day Mix   BUY   trend_continuation     $  2663.43 $  2659.65 $  2659.92 $  2671.42 $  -0.45 sl_hit      
+227 Multi-Day Mix   BUY   pivot_bounce           $  2661.72 $  2658.61 $  2658.88 $  2667.73 $  -0.45 sl_hit      
+228 Multi-Day Mix   BUY   vwap_bounce            $  2655.96 $  2653.02 $  2653.29 $  2661.55 $  -0.44 sl_hit      
+229 Multi-Day Mix   BUY   vwap_bounce            $  2655.01 $  2660.81 $  2652.15 $  2661.08 $   0.80 tp_hit      
+230 Multi-Day Mix   SELL  trend_continuation     $  2636.52 $  2639.99 $  2639.73 $  2630.62 $  -0.44 sl_hit      
+231 Multi-Day Mix   SELL  vwap_bounce            $  2645.25 $  2648.22 $  2647.96 $  2641.10 $  -0.44 sl_hit      
+232 Multi-Day Mix   BUY   vwap_bounce            $  2644.26 $  2641.26 $  2641.52 $  2648.95 $  -0.43 sl_hit      
+233 Multi-Day Mix   SELL  trend_continuation     $  2639.13 $  2636.13 $  2641.08 $  2635.87 $   0.58 tp_hit      
+234 Multi-Day Mix   SELL  trend_continuation     $  2635.69 $  2637.86 $  2637.60 $  2632.51 $  -0.45 sl_hit      
+235 Multi-Day Mix   SELL  trend_continuation     $  2637.17 $  2639.33 $  2639.07 $  2634.01 $  -0.44 sl_hit      
+236 Multi-Day Mix   BUY   vwap_bounce            $  2640.46 $  2642.49 $  2638.93 $  2642.75 $   0.50 tp_hit      
+237 Multi-Day Mix   BUY   trend_continuation     $  2657.91 $  2654.76 $  2655.03 $  2664.29 $  -0.42 sl_hit      
+238 Multi-Day Mix   BUY   trend_continuation     $  2658.84 $  2665.34 $  2655.80 $  2665.61 $   0.81 tp_hit      
+239 Multi-Day Mix   BUY   trend_continuation     $  2667.75 $  2675.40 $  2664.26 $  2675.67 $   0.86 tp_hit      
+240 Multi-Day Mix   BUY   trend_continuation     $  2675.52 $  2671.90 $  2672.17 $  2683.09 $  -0.44 sl_hit      
+241 Multi-Day Mix   BUY   pivot_bounce           $  2673.84 $  2670.66 $  2670.93 $  2680.03 $  -0.44 sl_hit      
+242 Multi-Day Mix   BUY   vwap_bounce            $  2669.63 $  2666.57 $  2666.84 $  2675.51 $  -0.43 sl_hit      
+243 Multi-Day Mix   SELL  vwap_bounce            $  2667.02 $  2670.21 $  2669.94 $  2660.81 $  -0.42 sl_hit      
+244 Multi-Day Mix   SELL  vwap_bounce            $  2668.70 $  2672.34 $  2672.07 $  2661.40 $  -0.41 sl_hit      
+245 Multi-Day Mix   BUY   vwap_bounce            $  2673.53 $  2680.72 $  2669.28 $  2680.99 $   0.62 tp_hit      
+246 Multi-Day Mix   BUY   pivot_bounce           $  2683.51 $  2690.57 $  2679.44 $  2690.84 $   0.66 tp_hit      
+247 Multi-Day Mix   BUY   trend_continuation     $  2691.23 $  2699.49 $  2686.74 $  2699.76 $   0.72 tp_hit      
+248 Multi-Day Mix   BUY   vwap_bounce            $  2718.75 $  2717.30 $  2717.57 $  2720.31 $  -0.50 sl_hit      
+249 Multi-Day Mix   BUY   vwap_bounce            $  2718.47 $  2719.68 $  2717.32 $  2719.95 $   0.42 tp_hit      
+250 Multi-Day Mix   BUY   vwap_bounce            $  2719.09 $  2720.27 $  2717.96 $  2720.54 $   0.42 tp_hit      
+251 Multi-Day Mix   BUY   breakout               $  2723.94 $  2722.28 $  2722.55 $  2725.91 $  -0.50 sl_hit      
+252 Multi-Day Mix   BUY   breakout               $  2725.05 $  2723.28 $  2723.55 $  2727.23 $  -0.48 sl_hit      
+253 Multi-Day Mix   SELL  vwap_bounce            $  2721.78 $  2723.54 $  2723.27 $  2719.07 $  -0.47 sl_hit      
+254 Multi-Day Mix   SELL  breakout               $  2720.15 $  2715.96 $  2722.35 $  2715.69 $   0.73 tp_hit      
+255 Multi-Day Mix   SELL  breakout               $  2715.00 $  2717.97 $  2717.70 $  2709.34 $  -0.44 sl_hit      
+256 Multi-Day Mix   BUY   breakout               $  2724.21 $  2729.20 $  2721.18 $  2729.47 $   0.64 tp_hit      
+257 Multi-Day Mix   SELL  vwap_bounce            $  2729.31 $  2728.13 $  2730.44 $  2727.86 $   0.42 tp_hit      
+258 Multi-Day Mix   SELL  vwap_bounce            $  2729.05 $  2727.70 $  2730.26 $  2727.43 $   0.46 tp_hit      
+259 Multi-Day Mix   SELL  trend_continuation     $  2719.81 $  2721.88 $  2721.61 $  2716.90 $  -0.49 sl_hit      
+260 Multi-Day Mix   SELL  trend_continuation     $  2720.54 $  2722.70 $  2722.43 $  2717.43 $  -0.47 sl_hit      
+261 Multi-Day Mix   BUY   vwap_bounce            $  2725.62 $  2722.95 $  2723.22 $  2730.55 $  -0.45 sl_hit      
+262 Multi-Day Mix   BUY   breakout               $  2729.59 $  2737.34 $  2725.93 $  2737.61 $   0.83 tp_hit      
+263 Multi-Day Mix   BUY   trend_continuation     $  2741.97 $  2738.22 $  2738.49 $  2749.86 $  -0.44 sl_hit      
+264 Multi-Day Mix   BUY   breakout               $  2745.28 $  2755.56 $  2740.58 $  2755.84 $   0.88 tp_hit      
+265 Multi-Day Mix   BUY   trend_continuation     $  2753.89 $  2749.51 $  2749.78 $  2759.84 $  -0.45 sl_hit      
+266 Multi-Day Mix   SELL  vwap_bounce            $  2744.90 $  2748.64 $  2748.37 $  2737.34 $  -0.44 sl_hit      
+267 Multi-Day Mix   BUY   breakout               $  2762.36 $  2756.31 $  2756.59 $  2773.06 $  -0.42 sl_hit      
+268 Multi-Day Mix   SELL  vwap_bounce            $  2753.10 $  2756.81 $  2756.53 $  2747.08 $  -0.42 sl_hit      
+269 Multi-Day Mix   SELL  vwap_bounce            $  2753.49 $  2757.22 $  2756.94 $  2747.43 $  -0.42 sl_hit      
+270 Multi-Day Mix   SELL  vwap_bounce            $  2752.82 $  2756.00 $  2755.72 $  2747.86 $  -0.41 sl_hit      
+271 Multi-Day Mix   SELL  vwap_bounce            $  2757.68 $  2758.99 $  2758.71 $  2756.47 $  -0.47 sl_hit      
+272 Multi-Day Mix   BUY   vwap_bounce            $  2759.10 $  2757.87 $  2758.15 $  2760.15 $  -0.46 sl_hit      
+273 Multi-Day Mix   BUY   vwap_bounce            $  2758.85 $  2757.63 $  2757.91 $  2759.89 $  -0.45 sl_hit      
+274 Multi-Day Mix   SELL  pivot_bounce           $  2757.74 $  2758.84 $  2758.56 $  2756.93 $  -0.46 sl_hit      
+275 Multi-Day Mix   SELL  vwap_bounce            $  2757.98 $  2759.09 $  2758.81 $  2757.15 $  -0.44 sl_hit      
+276 Multi-Day Mix   BUY   pivot_bounce           $  2759.25 $  2759.81 $  2758.41 $  2760.09 $   0.22 tp_hit      
+277 Multi-Day Mix   SELL  vwap_bounce            $  2759.54 $  2760.64 $  2760.36 $  2758.74 $  -0.44 sl_hit      
+278 Multi-Day Mix   BUY   vwap_bounce            $  2760.70 $  2761.13 $  2759.93 $  2761.41 $   0.18 tp_hit      
+279 Multi-Day Mix   BUY   vwap_bounce            $  2761.16 $  2760.00 $  2760.28 $  2762.01 $  -0.42 sl_hit      
+280 Multi-Day Mix   BUY   trend_continuation     $  2769.30 $  2767.72 $  2768.00 $  2770.77 $  -0.38 sl_hit      
+281 Multi-Day Mix   SELL  vwap_bounce            $  2763.85 $  2765.69 $  2765.41 $  2761.88 $  -0.36 sl_hit      
+282 Multi-Day Mix   SELL  trend_continuation     $  2756.97 $  2755.41 $  2758.27 $  2755.13 $   0.36 tp_hit      
+283 Multi-Day Mix   SELL  trend_continuation     $  2755.59 $  2754.02 $  2756.89 $  2753.74 $   0.37 tp_hit      
+284 Multi-Day Mix   SELL  breakout               $  2748.75 $  2750.31 $  2750.03 $  2747.01 $  -0.38 sl_hit      
+285 Multi-Day Mix   SELL  pivot_bounce           $  2751.70 $  2750.78 $  2752.72 $  2750.50 $   0.28 tp_hit      
+286 Multi-Day Mix   BUY   breakout               $  2761.35 $  2758.57 $  2758.85 $  2766.49 $  -0.35 sl_hit      
+287 Multi-Day Mix   SELL  trend_continuation     $  2753.63 $  2756.59 $  2756.31 $  2747.80 $  -0.34 sl_hit      
+288 Multi-Day Mix   SELL  trend_continuation     $  2753.17 $  2756.36 $  2756.08 $  2746.75 $  -0.33 sl_hit      
+289 Multi-Day Mix   SELL  breakout               $  2748.41 $  2741.05 $  2751.91 $  2740.78 $   0.61 tp_hit      
+290 Multi-Day Mix   SELL  trend_continuation     $  2733.68 $  2736.19 $  2735.92 $  2729.84 $  -0.34 sl_hit      
+291 Multi-Day Mix   SELL  vwap_bounce            $  2740.11 $  2741.14 $  2740.87 $  2739.40 $  -0.40 sl_hit      
+292 Multi-Day Mix   SELL  vwap_bounce            $  2740.09 $  2739.60 $  2740.87 $  2739.33 $   0.18 tp_hit      
+293 Multi-Day Mix   SELL  vwap_bounce            $  2741.87 $  2743.58 $  2743.31 $  2739.29 $  -0.35 sl_hit      
+294 Multi-Day Mix   SELL  trend_continuation     $  2737.44 $  2735.35 $  2738.97 $  2735.08 $   0.39 tp_hit      
+295 Multi-Day Mix   SELL  breakout               $  2734.57 $  2736.62 $  2736.35 $  2731.82 $  -0.34 sl_hit      
+296 Multi-Day Mix   BUY   breakout               $  2736.34 $  2737.76 $  2735.09 $  2738.03 $   0.32 tp_hit      
+297 Multi-Day Mix   SELL  vwap_bounce            $  2735.29 $  2734.29 $  2736.33 $  2734.02 $   0.28 tp_hit      
+298 Multi-Day Mix   BUY   vwap_bounce            $  2736.08 $  2736.91 $  2735.12 $  2737.18 $   0.25 tp_hit      
+299 Multi-Day Mix   BUY   vwap_bounce            $  2736.41 $  2735.11 $  2735.38 $  2738.00 $  -0.38 sl_hit      
+300 Multi-Day Mix   BUY   trend_continuation     $  2740.42 $  2738.64 $  2738.91 $  2743.31 $  -0.35 sl_hit      
+301 Multi-Day Mix   BUY   breakout               $  2749.78 $  2754.84 $  2747.21 $  2755.12 $   0.57 tp_hit      
+302 Multi-Day Mix   SELL  vwap_bounce            $  2750.69 $  2747.01 $  2752.70 $  2746.74 $   0.55 tp_hit      
+303 Multi-Day Mix   SELL  pivot_bounce           $  2745.65 $  2742.03 $  2748.00 $  2741.76 $   0.48 tp_hit      
+304 Multi-Day Mix   SELL  pivot_bounce           $  2741.91 $  2744.03 $  2743.76 $  2739.03 $  -0.37 sl_hit      
+305 Multi-Day Mix   SELL  vwap_bounce            $  2746.59 $  2748.73 $  2748.46 $  2743.66 $  -0.36 sl_hit      
+306 Multi-Day Mix   BUY   vwap_bounce            $  2747.60 $  2746.64 $  2746.91 $  2748.18 $  -0.43 sl_hit      
+307 Multi-Day Mix   BUY   vwap_bounce            $  2752.69 $  2751.21 $  2751.49 $  2754.65 $  -0.37 sl_hit      
+308 Multi-Day Mix   SELL  vwap_bounce            $  2751.73 $  2753.19 $  2752.91 $  2749.81 $  -0.36 sl_hit      
+309 Multi-Day Mix   SELL  vwap_bounce            $  2751.51 $  2749.78 $  2752.72 $  2749.51 $   0.41 tp_hit      
+310 Multi-Day Mix   BUY   pivot_bounce           $  2752.82 $  2751.38 $  2751.66 $  2754.70 $  -0.36 sl_hit      
+311 Multi-Day Mix   BUY   breakout               $  2753.85 $  2756.30 $  2752.34 $  2756.58 $   0.46 tp_hit      
+312 Multi-Day Mix   BUY   pivot_bounce           $  2753.65 $  2752.33 $  2752.61 $  2754.90 $  -0.37 sl_hit      
+313 Multi-Day Mix   SELL  breakout               $  2750.71 $  2749.05 $  2752.09 $  2748.78 $   0.34 tp_hit      
+314 Multi-Day Mix   BUY   breakout               $  2748.58 $  2749.68 $  2747.49 $  2749.95 $   0.29 tp_hit      
+315 Multi-Day Mix   BUY   breakout               $  2752.97 $  2751.71 $  2751.99 $  2754.10 $  -0.38 sl_hit      
+316 Multi-Day Mix   BUY   pivot_bounce           $  2752.14 $  2751.12 $  2751.40 $  2752.78 $  -0.40 sl_hit      
+317 Multi-Day Mix   SELL  breakout               $  2750.75 $  2749.18 $  2751.90 $  2748.91 $   0.39 tp_hit      
+318 Multi-Day Mix   SELL  breakout               $  2747.19 $  2745.03 $  2748.57 $  2744.76 $   0.45 tp_hit      
+319 Multi-Day Mix   SELL  trend_continuation     $  2743.91 $  2745.47 $  2745.20 $  2741.57 $  -0.36 sl_hit      
+320 Multi-Day Mix   SELL  trend_continuation     $  2744.80 $  2742.27 $  2746.28 $  2742.00 $   0.50 tp_hit      
+321 Multi-Day Mix   SELL  trend_continuation     $  2739.64 $  2741.27 $  2741.00 $  2737.13 $  -0.36 sl_hit      
+322 Multi-Day Mix   SELL  trend_continuation     $  2738.93 $  2740.62 $  2740.35 $  2736.27 $  -0.35 sl_hit      
+323 Multi-Day Mix   SELL  trend_continuation     $  2738.65 $  2735.65 $  2740.31 $  2735.38 $   0.52 tp_hit      
+324 Multi-Day Mix   SELL  trend_continuation     $  2736.09 $  2737.84 $  2737.57 $  2733.27 $  -0.35 sl_hit      
+325 Multi-Day Mix   SELL  trend_continuation     $  2736.63 $  2734.38 $  2738.24 $  2734.11 $   0.40 tp_hit      
+326 Multi-Day Mix   SELL  trend_continuation     $  2733.45 $  2731.70 $  2734.82 $  2731.43 $   0.38 tp_hit      
+327 Multi-Day Mix   SELL  trend_continuation     $  2731.18 $  2731.98 $  2732.58 $  2729.09 $  -0.18 timeout     
+328 Multi-Day Mix   BUY   vwap_bounce            $  2733.80 $  2734.89 $  2732.72 $  2735.16 $   0.30 tp_hit      
+329 Multi-Day Mix   BUY   pivot_bounce           $  2735.00 $  2736.00 $  2733.96 $  2736.27 $   0.29 tp_hit      
+330 Multi-Day Mix   SELL  vwap_bounce            $  2736.05 $  2738.09 $  2737.82 $  2732.65 $  -0.36 sl_hit      
+331 Multi-Day Mix   BUY   vwap_bounce            $  2737.47 $  2735.28 $  2735.55 $  2741.22 $  -0.35 sl_hit      
+332 Multi-Day Mix   BUY   vwap_bounce            $  2737.58 $  2735.33 $  2735.60 $  2741.48 $  -0.34 sl_hit      
+333 Multi-Day Mix   BUY   vwap_bounce            $  2741.55 $  2745.50 $  2739.44 $  2745.77 $   0.55 tp_hit      
+334 Multi-Day Mix   BUY   breakout               $  2749.13 $  2746.50 $  2746.77 $  2753.04 $  -0.34 sl_hit      
+335 Multi-Day Mix   BUY   trend_continuation     $  2753.10 $  2751.81 $  2752.09 $  2754.34 $  -0.38 sl_hit      
+336 Multi-Day Mix   BUY   vwap_bounce            $  2753.67 $  2752.24 $  2752.52 $  2754.70 $  -0.36 sl_hit      
+337 Multi-Day Mix   BUY   vwap_bounce            $  2752.90 $  2751.56 $  2751.84 $  2754.17 $  -0.36 sl_hit      
+338 Multi-Day Mix   BUY   vwap_bounce            $  2752.82 $  2751.43 $  2751.71 $  2754.20 $  -0.34 sl_hit      
+339 Multi-Day Mix   SELL  breakout               $  2750.36 $  2752.20 $  2751.92 $  2748.08 $  -0.32 sl_hit      
+340 Multi-Day Mix   BUY   vwap_bounce            $  2752.45 $  2751.00 $  2751.28 $  2753.96 $  -0.33 sl_hit      
+341 Multi-Day Mix   SELL  pivot_bounce           $  2750.27 $  2749.12 $  2751.40 $  2748.85 $   0.26 tp_hit      
+342 Multi-Day Mix   BUY   trend_continuation     $  2759.11 $  2756.95 $  2757.23 $  2762.92 $  -0.30 sl_hit      
+343 Multi-Day Mix   BUY   trend_continuation     $  2759.30 $  2756.94 $  2757.22 $  2763.61 $  -0.29 sl_hit      
+344 Multi-Day Mix   SELL  trend_continuation     $  2740.68 $  2735.11 $  2743.35 $  2734.84 $   0.52 tp_hit      
+345 Multi-Day Mix   SELL  trend_continuation     $  2736.75 $  2733.03 $  2739.07 $  2732.76 $   0.42 tp_hit      
+346 Multi-Day Mix   BUY   breakout               $  2730.62 $  2729.34 $  2729.61 $  2731.84 $  -0.34 sl_hit      
+347 Multi-Day Mix   BUY   vwap_bounce            $  2730.27 $  2729.27 $  2729.54 $  2730.91 $  -0.36 sl_hit      
+348 Multi-Day Mix   SELL  vwap_bounce            $  2729.89 $  2730.88 $  2730.61 $  2729.25 $  -0.35 sl_hit      
+349 Multi-Day Mix   BUY   vwap_bounce            $  2730.90 $  2731.08 $  2730.16 $  2731.35 $   0.06 tp_hit      
+350 Multi-Day Mix   SELL  breakout               $  2723.70 $  2725.65 $  2725.38 $  2720.52 $  -0.29 sl_hit      
+351 Multi-Day Mix   BUY   vwap_bounce            $  2725.10 $  2723.70 $  2723.97 $  2726.93 $  -0.30 sl_hit      
+352 Multi-Day Mix   SELL  vwap_bounce            $  2723.69 $  2722.07 $  2725.04 $  2721.80 $   0.28 tp_hit      
+353 Multi-Day Mix   SELL  trend_continuation     $  2719.28 $  2721.11 $  2720.84 $  2716.28 $  -0.28 sl_hit      
+354 Multi-Day Mix   SELL  vwap_bounce            $  2723.08 $  2724.74 $  2724.47 $  2720.62 $  -0.28 sl_hit      
+355 Multi-Day Mix   BUY   breakout               $  2726.64 $  2724.82 $  2725.09 $  2728.94 $  -0.27 sl_hit      
+356 Multi-Day Mix   BUY   breakout               $  2727.03 $  2725.23 $  2725.50 $  2729.27 $  -0.27 sl_hit      
+357 Multi-Day Mix   SELL  vwap_bounce            $  2724.11 $  2725.15 $  2724.88 $  2723.37 $  -0.30 sl_hit      
+358 Multi-Day Mix   SELL  vwap_bounce            $  2724.09 $  2725.14 $  2724.87 $  2723.34 $  -0.29 sl_hit      
+359 Multi-Day Mix   BUY   vwap_bounce            $  2725.41 $  2724.42 $  2724.69 $  2726.04 $  -0.29 sl_hit      
+360 Multi-Day Mix   SELL  breakout               $  2719.08 $  2720.86 $  2720.59 $  2716.31 $  -0.24 sl_hit      
+361 Multi-Day Mix   SELL  pivot_bounce           $  2719.58 $  2720.77 $  2720.50 $  2718.27 $  -0.26 sl_hit      
+362 Multi-Day Mix   SELL  vwap_bounce            $  2720.59 $  2721.88 $  2721.61 $  2719.03 $  -0.24 sl_hit      
+363 Multi-Day Mix   SELL  vwap_bounce            $  2720.55 $  2721.86 $  2721.59 $  2718.93 $  -0.24 sl_hit      
+364 Multi-Day Mix   BUY   trend_continuation     $  2727.44 $  2725.80 $  2726.07 $  2729.46 $  -0.22 sl_hit      
+365 Multi-Day Mix   SELL  vwap_bounce            $  2726.28 $  2725.28 $  2727.32 $  2725.01 $   0.17 tp_hit      
+====================================================================================================
