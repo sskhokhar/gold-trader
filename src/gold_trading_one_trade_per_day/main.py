@@ -23,6 +23,7 @@ from gold_trading_one_trade_per_day.event_trigger import (
     should_wake_ai,
 )
 from gold_trading_one_trade_per_day.execution_service import ExecutionContext, ExecutionService
+from gold_trading_one_trade_per_day.gold_strategy import analyze_gold
 from gold_trading_one_trade_per_day.historian import Historian
 from gold_trading_one_trade_per_day.latency_policy import evaluate_latency_policy
 from gold_trading_one_trade_per_day.market_stream import MarketStreamSensor
@@ -170,7 +171,7 @@ def _get_stream_sensor() -> MarketStreamSensor:
 def _build_snapshot(
     mode: str,
     calendar: EventCalendar,
-) -> tuple[object | None, dict]:
+) -> tuple[object | None, object | None, dict]:
     global _LAST_REST_FALLBACK_AT
 
     now = _now_ny()
@@ -190,7 +191,7 @@ def _build_snapshot(
         data_age_sec = health.data_age_sec
     else:
         if _LAST_REST_FALLBACK_AT and (now - _LAST_REST_FALLBACK_AT) < timedelta(seconds=fallback_interval_sec):
-            return None, {
+            return None, None, {
                 "status": "skipped",
                 "reason": "fallback_throttled",
                 "context": {
@@ -208,7 +209,7 @@ def _build_snapshot(
             data_source = DataSource.MOCK if allow_mock and not has_real_credentials() else DataSource.REST_FALLBACK
             data_age_sec = stream_health.data_age_sec if stream_health.last_msg_at else 0.0
         except Exception:
-            return None, {
+            return None, None, {
                 "status": "skipped",
                 "reason": "stale_data",
                 "context": {
@@ -232,7 +233,7 @@ def _build_snapshot(
     )
 
     blocked, macro_label = calendar.is_blocked(at=now)
-    return snapshot, {
+    return snapshot, bars, {
         "fallback_used": fallback_used,
         "stream_health": {
             "connected": stream_health.connected,
@@ -381,7 +382,7 @@ def _run_cycle(
         }
 
     calendar = EventCalendar()
-    snapshot, snapshot_meta = _build_snapshot(mode=mode, calendar=calendar)
+    snapshot, bars, snapshot_meta = _build_snapshot(mode=mode, calendar=calendar)
     if snapshot is None:
         return snapshot_meta
 
@@ -439,7 +440,7 @@ def _run_cycle(
         if spike_confirmation_delay > 0:
             time_module.sleep(spike_confirmation_delay)
             # Re-fetch snapshot for fresh prices after the delay
-            snapshot, snapshot_meta = _build_snapshot(mode=mode, calendar=calendar)
+            snapshot, bars, snapshot_meta = _build_snapshot(mode=mode, calendar=calendar)
             if snapshot is None:
                 return snapshot_meta
 
@@ -541,6 +542,32 @@ def _run_cycle(
         }
 
     estimated_requests = 1 if analysis_cache_hit else (3 if trading_mode == "spike" else 2)
+
+    # Run the math engine to compute trade levels before calling the LLM
+    trade_setup = analyze_gold(
+        bars=bars,
+        last_price=snapshot.last_price,
+        timestamp=_now_ny(),
+    )
+    trade_setup_json = trade_setup.to_json()
+
+    if not trade_setup.has_valid_setup():
+        state_store.update_event(
+            event_id,
+            status="skipped:no_math_setup",
+            snapshot_patch={
+                "skip_reason_code": "no_math_setup",
+                "trade_setup_type": trade_setup.setup_type,
+                "trade_setup_reasoning": trade_setup.reasoning,
+            },
+        )
+        return {
+            "status": "skipped",
+            "reason": "no_math_setup",
+            "event_id": event_id,
+            "trade_setup": trade_setup.to_dict(),
+        }
+
     reservation = quota_guard.reserve(
         event_id=event_id,
         estimated_requests=estimated_requests,
@@ -582,6 +609,7 @@ def _run_cycle(
     inputs = {
         "event_id": event_id,
         "feature_snapshot_json": snapshot.model_dump_json(),
+        "trade_setup_json": trade_setup_json,
         "symbol": "XAU_USD",
         "current_utc_iso": _utc_iso(now_for_prompt),
         "intent_ttl_seconds": intent_ttl_seconds,
@@ -775,6 +803,15 @@ def _run_cycle(
 
     original_generated_at = strategy_intent.generated_at
     original_expires_at = strategy_intent.expires_at
+
+    # Hard guardrail: enforce math-calculated price levels so the LLM cannot hallucinate them
+    if trade_setup.has_valid_setup() and strategy_intent.side.value == trade_setup.side:
+        strategy_intent = strategy_intent.model_copy(update={
+            "entry_price": trade_setup.entry_price,
+            "sl": trade_setup.stop_loss,
+            "tp": trade_setup.take_profit,
+        })
+
     strategy_intent = _normalize_strategy_intent_timestamps(
         intent=strategy_intent,
         now=_now_ny(),
@@ -797,6 +834,9 @@ def _run_cycle(
             "strategy_intent_original_expires_at": original_expires_at.isoformat(),
             "strategy_intent_normalized_generated_at": strategy_intent.generated_at.isoformat(),
             "strategy_intent_normalized_expires_at": strategy_intent.expires_at.isoformat(),
+            "trade_setup_type": trade_setup.setup_type,
+            "trade_setup_confluence": trade_setup.indicators.confluence_score,
+            "llm_decision": "vetoed" if strategy_intent.confidence == 0.0 else "approved",
         },
     )
 

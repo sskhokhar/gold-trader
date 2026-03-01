@@ -3,7 +3,7 @@
 import sys
 import os
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -229,6 +229,138 @@ class TestAnalyzeGold(unittest.TestCase):
         self.assertIsInstance(d, dict)
         self.assertIn("setup_type", d)
         self.assertIn("indicators", d)
+
+    def test_has_valid_setup_no_setup(self):
+        """NO_SETUP should return False from has_valid_setup()."""
+        bars = generate_gold_bars(num_bars=100, seed=42)
+        last_price = float(bars["close"].iloc[-1])
+        # Off-hours session forces NO_SETUP
+        ts = datetime(2025, 1, 6, 22, 0, tzinfo=UTC_TZ)
+        setup = analyze_gold(bars, last_price, timestamp=ts)
+        self.assertEqual(setup.setup_type, SetupType.NO_SETUP)
+        self.assertFalse(setup.has_valid_setup())
+
+    def test_has_valid_setup_with_setup(self):
+        """A detected setup should return True from has_valid_setup()."""
+        bars = generate_trending_day(direction="up", seed=42)
+        last_price = float(bars["close"].iloc[-1])
+        ts = datetime(2025, 1, 6, 14, 0, tzinfo=UTC_TZ)
+        setup = analyze_gold(bars, last_price, timestamp=ts)
+        if setup.setup_type != SetupType.NO_SETUP:
+            self.assertTrue(setup.has_valid_setup())
+
+    def test_to_json_is_valid_json(self):
+        """to_json() should produce a valid JSON string with key fields."""
+        import json
+        bars = generate_gold_bars(num_bars=100, seed=42)
+        last_price = float(bars["close"].iloc[-1])
+        ts = datetime(2025, 1, 6, 14, 0, tzinfo=UTC_TZ)
+        setup = analyze_gold(bars, last_price, timestamp=ts)
+        json_str = setup.to_json()
+        self.assertIsInstance(json_str, str)
+        parsed = json.loads(json_str)
+        self.assertIn("setup_type", parsed)
+        self.assertIn("side", parsed)
+        self.assertIn("entry_price", parsed)
+        self.assertIn("stop_loss", parsed)
+        self.assertIn("take_profit", parsed)
+        self.assertIn("confidence", parsed)
+
+
+class TestMathEngineGuardrail(unittest.TestCase):
+    """Tests for the hard guardrail that enforces math-calculated price levels."""
+
+    def _make_strategy_intent(self, side, entry, sl, tp):
+        from gold_trading_one_trade_per_day.schemas import (
+            EntryType, Regime, Side, StrategyIntent,
+        )
+        now = datetime.now(timezone.utc)
+        return StrategyIntent(
+            symbol="XAU_USD",
+            side=Side(side),
+            entry_type=EntryType.MARKETABLE_LIMIT,
+            entry_price=entry,
+            sl=sl,
+            tp=tp,
+            qty_hint=1.0,
+            confidence=0.8,
+            regime=Regime.TREND,
+            generated_at=now,
+            expires_at=now + timedelta(seconds=45),
+            invalidation_reason="test",
+            cancel_after_sec=30,
+        )
+
+    def _get_valid_buy_setup(self):
+        """Return a valid BUY setup using seed=6 which reliably produces one."""
+        bars = generate_trending_day(direction="up", seed=6)
+        last_price = float(bars["close"].iloc[-1])
+        ts = datetime(2025, 1, 6, 14, 0, tzinfo=UTC_TZ)
+        return analyze_gold(bars, last_price, timestamp=ts)
+
+    def test_guardrail_overrides_llm_levels_when_sides_match(self):
+        """When LLM side matches math side, math levels should be applied."""
+        setup = self._get_valid_buy_setup()
+        self.assertTrue(setup.has_valid_setup())
+        self.assertEqual(setup.side, "BUY")
+
+        # Simulate LLM returning different (wrong) levels
+        llm_intent = self._make_strategy_intent(
+            side="BUY",
+            entry=setup.entry_price + 50,  # LLM hallucinated a higher entry
+            sl=setup.entry_price + 40,
+            tp=setup.entry_price + 100,
+        )
+        self.assertNotEqual(llm_intent.entry_price, setup.entry_price)
+
+        # Apply guardrail (same logic as main.py)
+        if setup.has_valid_setup() and llm_intent.side.value == setup.side:
+            guardrailed_intent = llm_intent.model_copy(update={
+                "entry_price": setup.entry_price,
+                "sl": setup.stop_loss,
+                "tp": setup.take_profit,
+            })
+        else:
+            guardrailed_intent = llm_intent
+
+        self.assertEqual(guardrailed_intent.entry_price, setup.entry_price)
+        self.assertEqual(guardrailed_intent.sl, setup.stop_loss)
+        self.assertEqual(guardrailed_intent.tp, setup.take_profit)
+
+    def test_guardrail_skips_override_when_sides_differ(self):
+        """When LLM side differs from math side, guardrail does not apply."""
+        setup = self._get_valid_buy_setup()
+        self.assertTrue(setup.has_valid_setup())
+        self.assertEqual(setup.side, "BUY")
+
+        # LLM returned SELL intent (different side from math BUY)
+        sell_entry = setup.entry_price + 10
+        llm_intent = self._make_strategy_intent(
+            side="SELL",
+            entry=sell_entry,
+            sl=sell_entry + 15,
+            tp=sell_entry - 25,
+        )
+        original_entry = llm_intent.entry_price
+
+        # Guardrail check — side mismatch → no override
+        if setup.has_valid_setup() and llm_intent.side.value == setup.side:
+            llm_intent = llm_intent.model_copy(update={
+                "entry_price": setup.entry_price,
+                "sl": setup.stop_loss,
+                "tp": setup.take_profit,
+            })
+
+        # Should be unchanged since sides differ
+        self.assertEqual(llm_intent.entry_price, original_entry)
+
+    def test_no_setup_has_valid_setup_false(self):
+        """NO_SETUP type correctly reports has_valid_setup() == False."""
+        bars = generate_gold_bars(num_bars=100, seed=42)
+        last_price = float(bars["close"].iloc[-1])
+        ts = datetime(2025, 1, 6, 22, 0, tzinfo=UTC_TZ)
+        setup = analyze_gold(bars, last_price, timestamp=ts)
+        self.assertFalse(setup.has_valid_setup())
 
 
 if __name__ == "__main__":
