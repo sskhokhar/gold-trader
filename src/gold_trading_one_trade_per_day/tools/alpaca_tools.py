@@ -2,182 +2,142 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
-from alpaca.data.enums import DataFeed
-from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest
-from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
-from alpaca.trading.client import TradingClient
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
+
+try:
+    import oandapyV20
+    import oandapyV20.endpoints.accounts as oanda_accounts
+    import oandapyV20.endpoints.instruments as oanda_instruments
+    import oandapyV20.endpoints.pricing as oanda_pricing
+    _OANDA_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _OANDA_AVAILABLE = False
 
 
 def _env(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
 
 
-def _parse_data_feed(value: str) -> DataFeed | None:
-    normalized = (value or "").strip().upper()
-    if normalized == "IEX":
-        return DataFeed.IEX
-    if normalized == "SIP":
-        return DataFeed.SIP
-    return None
-
-
-def _configured_data_feeds() -> list[DataFeed]:
-    raw = _env("ALPACA_DATA_FEEDS", "IEX")
-    feeds: list[DataFeed] = []
-    seen: set[DataFeed] = set()
-    for token in raw.split(","):
-        feed = _parse_data_feed(token)
-        if feed is None or feed in seen:
-            continue
-        feeds.append(feed)
-        seen.add(feed)
-    if not feeds:
-        feeds.append(DataFeed.IEX)
-    return feeds
-
-
 def has_real_credentials() -> bool:
-    key = _env("ALPACA_API_KEY")
-    secret = _env("ALPACA_SECRET_KEY")
-    return bool(key and secret and key != "your_alpaca_api_key_here")
+    token = _env("OANDA_API_TOKEN")
+    account_id = _env("OANDA_ACCOUNT_ID")
+    return bool(token and account_id and token != "your_oanda_api_token_here")
 
 
 def is_paper_mode() -> bool:
-    return _env("ALPACA_PAPER", "true").lower() == "true"
+    return _env("OANDA_ENVIRONMENT", "practice").lower() != "live"
 
 
-def get_data_client() -> StockHistoricalDataClient | None:
-    if not has_real_credentials():
+def _base_url() -> str:
+    if is_paper_mode():
+        return "https://api-fxpractice.oanda.com"
+    return "https://api-fxtrade.oanda.com"
+
+
+def get_oanda_client() -> "oandapyV20.API | None":
+    if not _OANDA_AVAILABLE or not has_real_credentials():
         return None
-    return StockHistoricalDataClient(_env("ALPACA_API_KEY"), _env("ALPACA_SECRET_KEY"))
+    environment = "practice" if is_paper_mode() else "live"
+    return oandapyV20.API(access_token=_env("OANDA_API_TOKEN"), environment=environment)
 
 
-def get_trading_client() -> TradingClient | None:
-    if not has_real_credentials():
-        return None
-    return TradingClient(_env("ALPACA_API_KEY"), _env("ALPACA_SECRET_KEY"), paper=is_paper_mode())
+# Keep backward-compatible alias used in main.py / warmup.py
+def get_trading_client() -> "oandapyV20.API | None":
+    return get_oanda_client()
 
 
-def mock_bars(symbol: str = "GLD", periods: int = 120) -> pd.DataFrame:
+def mock_bars(symbol: str = "XAU_USD", periods: int = 120) -> pd.DataFrame:
     idx = pd.date_range(end=datetime.now(tz=timezone.utc), periods=periods, freq="1min")
-    base = 200.0
+    base = 2900.0
     prices = [base]
     for i in range(1, periods):
-        drift = 0.01 if i % 15 else 0.08
+        drift = 0.10 if i % 15 else 0.80
         prices.append(prices[-1] + drift)
     close = pd.Series(prices, index=idx)
     open_ = close.shift(1).fillna(close.iloc[0])
-    high = pd.concat([open_, close], axis=1).max(axis=1) + 0.05
-    low = pd.concat([open_, close], axis=1).min(axis=1) - 0.05
+    high = pd.concat([open_, close], axis=1).max(axis=1) + 0.50
+    low = pd.concat([open_, close], axis=1).min(axis=1) - 0.50
     volume = pd.Series([10000 + (25000 if i % 20 == 0 else 0) for i in range(periods)], index=idx)
     return pd.DataFrame({"open": open_, "high": high, "low": low, "close": close, "volume": volume})
 
 
 def fetch_recent_bars(
-    symbol: str = "GLD",
-    timeframe: TimeFrame | None = None,
+    symbol: str = "XAU_USD",
     lookback_minutes: int = 180,
     allow_mock: bool = True,
+    **_kwargs: Any,
 ) -> pd.DataFrame:
-    client = get_data_client()
+    client = get_oanda_client()
     if client is None:
         if not allow_mock:
-            raise RuntimeError("alpaca_data_client_unavailable")
+            raise RuntimeError("oanda_client_unavailable")
         return mock_bars(symbol=symbol)
 
-    tf = timeframe or TimeFrame(1, TimeFrameUnit.Minute)
-    # Keep a small default lag to avoid partially formed current-minute bars,
-    # but make it configurable and retry without lag if the first query is empty.
-    delay_min = max(int(os.getenv("ALPACA_BARS_DELAY_MINUTES", "1")), 0)
-
-    def _make_request(end_dt: datetime, feed: DataFeed) -> StockBarsRequest:
-        start_dt = end_dt - timedelta(minutes=lookback_minutes)
-        return StockBarsRequest(
-            symbol_or_symbols=symbol,
-            timeframe=tf,
-            start=start_dt,
-            end=end_dt,
-            feed=feed,
-        )
-
-    def _normalize_bars_df(raw_df: pd.DataFrame) -> pd.DataFrame:
-        df = raw_df.copy()
-        if isinstance(df.index, pd.MultiIndex):
-            df = df.reset_index()
-        if "timestamp" in df.columns:
-            df = df.set_index("timestamp")
-
-        df.columns = [str(col).lower() for col in df.columns]
-        required = ["open", "high", "low", "close", "volume"]
-        missing = [col for col in required if col not in df.columns]
-        if missing:
-            raise KeyError(f"missing bar columns: {missing}")
-        return df[required].copy()
-
     try:
-        delayed_end = datetime.now(timezone.utc) - timedelta(minutes=delay_min)
-        last_error: Exception | None = None
-        for feed in _configured_data_feeds():
-            try:
-                bars = client.get_stock_bars(_make_request(delayed_end, feed=feed))
-                df = bars.df
-                if df is None or len(df) == 0:
-                    # Retry with no artificial delay. This helps around session open.
-                    bars = client.get_stock_bars(
-                        _make_request(datetime.now(timezone.utc), feed=feed)
-                    )
-                    df = bars.df
-                if df is None or len(df) == 0:
-                    raise RuntimeError("alpaca_bars_empty")
-                return _normalize_bars_df(df)
-            except Exception as exc:
-                last_error = exc
-                continue
-        if last_error is not None:
-            raise last_error
-        raise RuntimeError("alpaca_bars_empty")
+        params = {
+            "count": min(lookback_minutes, 500),
+            "granularity": "M1",
+            "price": "M",
+        }
+        r = oanda_instruments.InstrumentsCandles(symbol, params=params)
+        client.request(r)
+        candles = r.response.get("candles", [])
+        if not candles:
+            raise RuntimeError("oanda_bars_empty")
+
+        rows = []
+        for c in candles:
+            mid = c.get("mid", {})
+            rows.append(
+                {
+                    "timestamp": pd.Timestamp(c["time"]),
+                    "open": float(mid.get("o", 0)),
+                    "high": float(mid.get("h", 0)),
+                    "low": float(mid.get("l", 0)),
+                    "close": float(mid.get("c", 0)),
+                    "volume": float(c.get("volume", 0)),
+                }
+            )
+        df = pd.DataFrame(rows).set_index("timestamp")
+        if df.empty:
+            raise RuntimeError("oanda_bars_empty")
+        return df[["open", "high", "low", "close", "volume"]].copy()
     except Exception:
         if not allow_mock:
             raise
         return mock_bars(symbol=symbol)
 
 
-def fetch_latest_quote(symbol: str = "GLD", allow_mock: bool = True) -> tuple[float, float]:
-    client = get_data_client()
+def fetch_latest_quote(symbol: str = "XAU_USD", allow_mock: bool = True) -> tuple[float, float]:
+    client = get_oanda_client()
     if client is None:
         if not allow_mock:
-            raise RuntimeError("alpaca_data_client_unavailable")
-        return 200.00, 200.01
+            raise RuntimeError("oanda_client_unavailable")
+        return 2900.00, 2900.50
 
+    account_id = _env("OANDA_ACCOUNT_ID")
     try:
-        last_error: Exception | None = None
-        for feed in _configured_data_feeds():
-            try:
-                req = StockLatestQuoteRequest(symbol_or_symbols=symbol, feed=feed)
-                quotes = client.get_stock_latest_quote(req)
-                quote = quotes[symbol]
-                bid = float(quote.bid_price)
-                ask = float(quote.ask_price)
-                if bid <= 0 or ask <= 0 or ask < bid:
-                    raise RuntimeError("alpaca_quote_invalid")
-                return bid, ask
-            except Exception as exc:
-                last_error = exc
-                continue
-        if last_error is not None:
-            raise last_error
-        raise RuntimeError("alpaca_quote_unavailable")
+        params = {"instruments": symbol}
+        r = oanda_pricing.PricingInfo(account_id, params=params)
+        client.request(r)
+        prices = r.response.get("prices", [])
+        if not prices:
+            raise RuntimeError("oanda_quote_unavailable")
+        price = prices[0]
+        bid = float(price["bids"][0]["price"])
+        ask = float(price["asks"][0]["price"])
+        if bid <= 0 or ask <= 0 or ask < bid:
+            raise RuntimeError("oanda_quote_invalid")
+        return bid, ask
     except Exception:
         if not allow_mock:
             raise
-        return 200.00, 200.01
+        return 2900.00, 2900.50
 
 
 def fetch_macro_proxy_returns(allow_mock: bool = True) -> dict[str, float]:
@@ -199,16 +159,19 @@ def fetch_macro_proxy_returns(allow_mock: bool = True) -> dict[str, float]:
 
 
 def fetch_account_equity(allow_mock: bool = True) -> float:
-    client = get_trading_client()
+    client = get_oanda_client()
     if client is None:
         if not allow_mock:
-            raise RuntimeError("alpaca_trading_client_unavailable")
+            raise RuntimeError("oanda_trading_client_unavailable")
         return 100_000.0
 
+    account_id = _env("OANDA_ACCOUNT_ID")
     try:
-        account = client.get_account()
-        equity = account.equity or account.portfolio_value or "0"
-        return float(equity)
+        r = oanda_accounts.AccountSummary(account_id)
+        client.request(r)
+        account = r.response.get("account", {})
+        nav = account.get("NAV") or account.get("balance") or "0"
+        return float(nav)
     except Exception:
         if not allow_mock:
             raise
@@ -216,18 +179,18 @@ def fetch_account_equity(allow_mock: bool = True) -> float:
 
 
 class AlpacaDataToolInput(BaseModel):
-    symbol: str = Field(default="GLD", description="Ticker symbol for analysis.")
+    symbol: str = Field(default="XAU_USD", description="Instrument symbol for analysis.")
 
 
 class AlpacaDataTool(BaseTool):
-    name: str = "Alpaca Market Snapshot Tool"
+    name: str = "OANDA Market Snapshot Tool"
     description: str = (
         "Returns a compact market snapshot with latest price, quote spread, volume spike, "
-        "and macro proxies for event-triggered GLD analysis."
+        "and macro proxies for event-triggered XAU_USD analysis."
     )
     args_schema = AlpacaDataToolInput
 
-    def _run(self, symbol: str = "GLD") -> str:
+    def _run(self, symbol: str = "XAU_USD") -> str:
         bars = fetch_recent_bars(symbol=symbol, lookback_minutes=60)
         bid, ask = fetch_latest_quote(symbol=symbol)
         macro = fetch_macro_proxy_returns()
@@ -262,3 +225,4 @@ class AlpacaExecutionTool(BaseTool):
             "Direct execution denied. Use deterministic execution_service.py with "
             "validated ExecutionCommand and risk approval."
         )
+

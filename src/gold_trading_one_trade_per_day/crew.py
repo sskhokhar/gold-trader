@@ -19,7 +19,7 @@ from gold_trading_one_trade_per_day.tools.alpaca_tools import AlpacaDataTool
 
 @CrewBase
 class GoldTradingOneTradePerDayCrew:
-    """Event-driven GLD scalping crew for analysis and strategy intent generation."""
+    """Event-driven XAU_USD scalping crew for analysis and strategy intent generation."""
 
     def __init__(self, mode: str = "shadow"):
         self.mode = mode

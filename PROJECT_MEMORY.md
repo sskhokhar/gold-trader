@@ -112,7 +112,7 @@ Last updated: 2026-02-26
   - Fixture-based analyst A/B model benchmarking with deterministic scoring.
 
 ## 5) Risk/Trading Constraints (Current Defaults)
-- Symbol: `GLD`.
+- Symbol: `XAU_USD` (OANDA gold spot forex).
 - Per-trade risk: `0.25%`.
 - Soft lock: `+0.75%`.
 - Hard profit lock: `+1.5%`.
@@ -120,9 +120,9 @@ Last updated: 2026-02-26
 - Max entries/day: `8`.
 - Cooldown after close: `180s`.
 - Max consecutive losses: `3`.
-- Max spread: `$0.02`.
+- Max spread: `$0.50` (XAU_USD typical spread is $0.30–$2.00).
 - Intent TTL: `45s`.
-- No new entries after: `15:30 ET`.
+- No new entries after: `23:00 ET` (XAU_USD trades 24/5).
 
 Risk profile file:
 - `src/gold_trading_one_trade_per_day/config/risk_profile.yaml`
@@ -133,9 +133,14 @@ Risk profile file:
   - VWAP displacement
   - range expansion
   - spread gate
-  - RTH/session checks
-- Open warm-up skip:
-  - 9:30-9:35 ET -> `open_warmup`
+  - Trading hours checks (XAU_USD 24/5)
+- Weekly market open warmup skip:
+  - Sun 17:00–17:05 ET → `open_warmup`
+- XAU_USD trading hours (is_rth):
+  - Mon–Thu: always open
+  - Fri: open before 17:00 ET
+  - Sun: open after 17:00 ET
+  - Sat: always closed
 - Macro event skip:
   - `event_windows.yaml` + `MACRO_EVENT_BLOCK_MINUTES`
 - If no valid data path:
@@ -209,10 +214,10 @@ Useful examples:
 - `./.venv/bin/python -m unittest discover -s tests -v`
 
 ## 11) Environment Variables (Operational)
-- Alpaca:
-  - `ALPACA_API_KEY`
-  - `ALPACA_SECRET_KEY`
-  - `ALPACA_PAPER`
+- OANDA:
+  - `OANDA_API_TOKEN`
+  - `OANDA_ACCOUNT_ID`
+  - `OANDA_ENVIRONMENT` (`practice` [default] or `live`)
 - LLM routing/runtime:
   - `AGENT_MODEL_ANALYST`
   - `AGENT_MODEL_STRATEGY`

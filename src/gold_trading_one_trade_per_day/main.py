@@ -132,7 +132,7 @@ def _is_mock_allowed(mode: str) -> bool:
 def _get_stream_sensor() -> MarketStreamSensor:
     global _STREAM_SENSOR
     if _STREAM_SENSOR is None:
-        _STREAM_SENSOR = MarketStreamSensor(symbol="GLD")
+        _STREAM_SENSOR = MarketStreamSensor(symbol="XAU_USD")
         _STREAM_SENSOR.start()
     else:
         _STREAM_SENSOR.start()
@@ -175,8 +175,8 @@ def _build_snapshot(
         fallback_used = True
         _LAST_REST_FALLBACK_AT = now
         try:
-            bars = fetch_recent_bars(symbol="GLD", lookback_minutes=180, allow_mock=allow_mock)
-            bid, ask = fetch_latest_quote(symbol="GLD", allow_mock=allow_mock)
+            bars = fetch_recent_bars(symbol="XAU_USD", lookback_minutes=180, allow_mock=allow_mock)
+            bid, ask = fetch_latest_quote(symbol="XAU_USD", allow_mock=allow_mock)
             data_source = DataSource.MOCK if allow_mock and not has_real_credentials() else DataSource.REST_FALLBACK
             data_age_sec = stream_health.data_age_sec if stream_health.last_msg_at else 0.0
         except Exception:
@@ -198,7 +198,7 @@ def _build_snapshot(
         ask=ask,
         macro_proxies=macro,
         timestamp=now,
-        symbol="GLD",
+        symbol="XAU_USD",
         data_source=data_source,
         data_age_sec=data_age_sec,
     )
@@ -358,7 +358,7 @@ def _run_cycle(
         return snapshot_meta
 
     event_id = str(uuid.uuid4())
-    state_store.record_event(event_id=event_id, symbol="GLD", snapshot=snapshot.model_dump(mode="json"))
+    state_store.record_event(event_id=event_id, symbol="XAU_USD", snapshot=snapshot.model_dump(mode="json"))
     state_store.upsert_latency_metric(
         event_id=event_id,
         event_detected_at=_now_ny(),
@@ -506,7 +506,7 @@ def _run_cycle(
     inputs = {
         "event_id": event_id,
         "feature_snapshot_json": snapshot.model_dump_json(),
-        "symbol": "GLD",
+        "symbol": "XAU_USD",
         "current_utc_iso": _utc_iso(now_for_prompt),
         "intent_ttl_seconds": intent_ttl_seconds,
     }
@@ -974,7 +974,7 @@ def train() -> None:
     inputs = {
         "event_id": "sample-event",
         "feature_snapshot_json": "{}",
-        "symbol": "GLD",
+        "symbol": "XAU_USD",
     }
     GoldTradingOneTradePerDayCrew().crew().train(
         n_iterations=int(args[0]),
@@ -997,7 +997,7 @@ def test() -> None:
     inputs = {
         "event_id": "sample-event",
         "feature_snapshot_json": "{}",
-        "symbol": "GLD",
+        "symbol": "XAU_USD",
     }
     crew = GoldTradingOneTradePerDayCrew().crew()
     # CrewAI changed this kwarg from openai_model_name -> eval_llm across releases.
@@ -1017,7 +1017,7 @@ def test() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="GLD event-driven scalping controller")
+    parser = argparse.ArgumentParser(description="XAUUSD event-driven scalping controller")
     parser.add_argument(
         "command",
         nargs="?",

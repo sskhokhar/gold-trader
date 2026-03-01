@@ -59,7 +59,7 @@ TERMINAL_INTENT_STATES = {
 
 class FeatureSnapshot(BaseModel):
     snapshot_id: str = Field(default_factory=lambda: str(uuid4()))
-    symbol: str = Field(default="GLD")
+    symbol: str = Field(default="XAU_USD")
     timestamp: datetime
     data_source: DataSource = Field(default=DataSource.REST_FALLBACK)
     data_age_sec: float = Field(default=0.0, ge=0.0)
@@ -98,7 +98,7 @@ class FeatureSnapshot(BaseModel):
 
 class MarketSentimentReport(BaseModel):
     report_id: str = Field(default_factory=lambda: str(uuid4()))
-    symbol: str = Field(default="GLD")
+    symbol: str = Field(default="XAU_USD")
     generated_at: datetime
     regime: Regime
     greed_score: float = Field(ge=0, le=100)
@@ -115,7 +115,7 @@ class MarketSentimentReport(BaseModel):
 
 class StrategyIntent(BaseModel):
     intent_id: str = Field(default_factory=lambda: str(uuid4()))
-    symbol: str = Field(default="GLD")
+    symbol: str = Field(default="XAU_USD")
     side: Side
     entry_type: EntryType = Field(default=EntryType.MARKETABLE_LIMIT)
     entry_price: float = Field(gt=0)
@@ -170,7 +170,7 @@ class ExecutionCommand(BaseModel):
     cancel_after_sec: int = Field(default=30, ge=5, le=120)
     max_slippage_bps: float = Field(default=20, ge=1, le=200)
     risk_signature: str = Field(min_length=8)
-    symbol: str = Field(default="GLD")
+    symbol: str = Field(default="XAU_USD")
     side: Side
     qty: float = Field(gt=0)
     entry_limit_price: float = Field(gt=0)

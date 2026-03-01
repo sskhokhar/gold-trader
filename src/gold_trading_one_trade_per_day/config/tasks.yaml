@@ -1,7 +1,7 @@
 ---
 analyze_market_sentiment:
   description: >-
-    You are called only after a deterministic event trigger has fired for GLD.
+    You are called only after a deterministic event trigger has fired for XAU_USD.
     Input includes a feature snapshot and macro proxy returns.
     Return only a JSON object matching MarketSentimentReport schema with:
     report_id, symbol, generated_at, regime, greed_score, sentiment_score, rationale.
@@ -22,7 +22,7 @@ compose_strategy_intent:
     intent_id, symbol, side, entry_type, entry_price, sl, tp, qty_hint,
     confidence, regime, generated_at, expires_at, invalidation_reason, cancel_after_sec.
     Rules:
-    - Use symbol GLD.
+    - Use symbol XAU_USD.
     - generated_at must be near {current_utc_iso}.
     - expires_at must be greater than generated_at and no more than {intent_ttl_seconds} seconds after generated_at.
     - For BUY: sl < entry_price < tp.

@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import math
+import os
 import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
-
-from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import OrderClass, OrderSide, OrderStatus, TimeInForce
-from alpaca.trading.requests import LimitOrderRequest, StopLossRequest, TakeProfitRequest
 
 from gold_trading_one_trade_per_day.schemas import (
     EntryType,
@@ -20,6 +17,15 @@ from gold_trading_one_trade_per_day.schemas import (
     StrategyIntent,
 )
 from gold_trading_one_trade_per_day.state_store import StateStore
+
+try:
+    import oandapyV20
+    import oandapyV20.endpoints.orders as oanda_orders
+    import oandapyV20.endpoints.positions as oanda_positions
+    import oandapyV20.endpoints.trades as oanda_trades
+    _OANDA_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _OANDA_AVAILABLE = False
 
 
 @dataclass(slots=True)
@@ -34,21 +40,14 @@ def utc_now() -> datetime:
 
 
 class ExecutionService:
-    def __init__(self, state_store: StateStore, trading_client: TradingClient | None = None):
+    def __init__(self, state_store: StateStore, trading_client: "oandapyV20.API | None" = None):
         self.state_store = state_store
         self.trading_client = trading_client
 
     @staticmethod
-    def _to_order_side(side: Side) -> OrderSide:
-        if side == Side.BUY:
-            return OrderSide.BUY
-        if side == Side.SELL:
-            return OrderSide.SELL
-        raise ValueError(f"unsupported side: {side}")
-
-    @staticmethod
-    def _exit_side(side: Side) -> OrderSide:
-        return OrderSide.SELL if side == Side.BUY else OrderSide.BUY
+    def _side_units(side: Side, qty: float) -> str:
+        """OANDA uses signed units: positive = buy, negative = sell."""
+        return str(int(qty)) if side == Side.BUY else str(-int(qty))
 
     @staticmethod
     def _as_float(value: Any) -> float:
@@ -66,6 +65,7 @@ class ExecutionService:
 
     @staticmethod
     def _tick_size(price: float) -> float:
+        # XAUUSD uses 2 decimal places (e.g. 2900.50)
         return 0.01 if price >= 1.0 else 0.0001
 
     @classmethod
@@ -194,7 +194,7 @@ class ExecutionService:
         intent = context.intent
         cmd = context.command
         now = utc_now()
-        side = self._to_order_side(cmd.side)
+        account_id = os.environ.get("OANDA_ACCOUNT_ID", "")
 
         price_buffer = cmd.entry_limit_price * (cmd.max_slippage_bps / 10_000)
         if cmd.side == Side.BUY:
@@ -208,17 +208,27 @@ class ExecutionService:
                 mode="floor",
             )
 
-        entry_request = LimitOrderRequest(
-            symbol=cmd.symbol,
-            qty=cmd.qty,
-            side=side,
-            time_in_force=TimeInForce.DAY,
-            limit_price=protected_limit,
-            client_order_id=cmd.client_order_id,
-        )
+        tp_price = self._quantize_price(cmd.tp, mode="nearest")
+        sl_price = self._quantize_price(cmd.sl, mode="nearest")
+
+        order_body = {
+            "order": {
+                "type": "LIMIT",
+                "instrument": cmd.symbol,
+                "units": self._side_units(cmd.side, cmd.qty),
+                "price": f"{protected_limit:.2f}",
+                "timeInForce": "GTD",
+                "gtdTime": intent.expires_at.strftime("%Y-%m-%dT%H:%M:%S.000000000Z"),
+                "takeProfitOnFill": {"price": f"{tp_price:.2f}"},
+                "stopLossOnFill": {"price": f"{sl_price:.2f}"},
+                "clientExtensions": {"id": cmd.client_order_id[:128]},
+            }
+        }
 
         try:
-            entry_order = self.trading_client.submit_order(entry_request)
+            r = oanda_orders.OrderCreate(account_id, data=order_body)
+            self.trading_client.request(r)
+            response = r.response
         except Exception as exc:
             return ExecutionReport(
                 intent_id=cmd.intent_id,
@@ -231,67 +241,86 @@ class ExecutionService:
                     "completed_at": utc_now().isoformat(),
                 },
             )
-        entry_payload = self._order_to_payload(entry_order)
 
-        entry_id = str(entry_order.id)
+        order_create_txn = response.get("orderCreateTransaction", {})
+        entry_id = str(order_create_txn.get("id", str(uuid.uuid4())))
+        entry_payload = response
+
         self.state_store.record_order(
             order_id=entry_id,
             intent_id=cmd.intent_id,
             client_order_id=cmd.client_order_id,
             order_role="entry",
-            status=str(entry_order.status),
+            status="pending",
             payload=entry_payload,
             broker_order_id=entry_id,
             submitted_at=now,
         )
 
+        # Poll for fill
         deadline = time.monotonic() + cmd.cancel_after_sec
-        current = entry_order
-        while time.monotonic() < deadline:
-            current = self.trading_client.get_order_by_client_id(cmd.client_order_id)
-            status = current.status
-            self.state_store.update_order_status(
-                broker_order_id=str(current.id),
-                status=str(status),
-                payload=self._order_to_payload(current),
-                filled_at=current.filled_at,
-                cancelled_at=current.canceled_at,
-            )
-            if status == OrderStatus.FILLED:
-                break
-            if status in {
-                OrderStatus.CANCELED,
-                OrderStatus.REJECTED,
-                OrderStatus.EXPIRED,
-                OrderStatus.DONE_FOR_DAY,
-            }:
-                return ExecutionReport(
-                    intent_id=cmd.intent_id,
-                    broker_order_id=str(current.id),
-                    entry_order_id=str(current.id),
-                    status="Not_Executed",
-                    reject_reason=f"ENTRY_{status.value.upper()}",
-                    timestamps={
-                        "submitted_at": now.isoformat(),
-                        "completed_at": utc_now().isoformat(),
-                    },
-                )
-            time.sleep(1.0)
+        fill_txn = response.get("orderFillTransaction")
+        filled_qty = 0.0
+        fill_price = 0.0
+        trade_id: str | None = None
 
-        current = self.trading_client.get_order_by_client_id(cmd.client_order_id)
-        if current.status != OrderStatus.FILLED:
-            self.trading_client.cancel_order_by_id(current.id)
-            cancelled = self.trading_client.get_order_by_id(current.id)
-            self.state_store.update_order_status(
-                broker_order_id=str(current.id),
-                status=str(cancelled.status),
-                payload=self._order_to_payload(cancelled),
-                cancelled_at=cancelled.canceled_at,
-            )
+        if fill_txn:
+            filled_qty = abs(float(fill_txn.get("units", 0)))
+            fill_price = float(fill_txn.get("price", 0))
+            trade_id = str(fill_txn.get("tradeOpened", {}).get("tradeID", ""))
+
+        while not fill_txn and time.monotonic() < deadline:
+            time.sleep(1.0)
+            try:
+                r2 = oanda_orders.OrderDetails(account_id, entry_id)
+                self.trading_client.request(r2)
+                order_detail = r2.response.get("order", {})
+                state = order_detail.get("state", "")
+                self.state_store.update_order_status(
+                    broker_order_id=entry_id,
+                    status=state,
+                    payload=r2.response,
+                )
+                if state == "FILLED":
+                    filled_units = abs(float(order_detail.get("units", 0)))
+                    avg_price = float(order_detail.get("averageFilledPrice", fill_price or 0))
+                    filled_qty = filled_units
+                    fill_price = avg_price
+                    trade_ids = order_detail.get("tradeOpenedIDs", [])
+                    trade_id = str(trade_ids[0]) if trade_ids else None
+                    fill_txn = order_detail
+                    break
+                if state in {"CANCELLED", "EXPIRED"}:
+                    return ExecutionReport(
+                        intent_id=cmd.intent_id,
+                        broker_order_id=entry_id,
+                        entry_order_id=entry_id,
+                        status="Not_Executed",
+                        reject_reason=f"ENTRY_{state}",
+                        timestamps={
+                            "submitted_at": now.isoformat(),
+                            "completed_at": utc_now().isoformat(),
+                        },
+                    )
+            except Exception:
+                continue
+
+        if not fill_txn:
+            # Cancel the unfilled order
+            try:
+                r_cancel = oanda_orders.OrderCancel(account_id, entry_id)
+                self.trading_client.request(r_cancel)
+                self.state_store.update_order_status(
+                    broker_order_id=entry_id,
+                    status="CANCELLED",
+                    payload=r_cancel.response,
+                )
+            except Exception:
+                pass
             return ExecutionReport(
                 intent_id=cmd.intent_id,
-                broker_order_id=str(current.id),
-                entry_order_id=str(current.id),
+                broker_order_id=entry_id,
+                entry_order_id=entry_id,
                 status="Cancelled",
                 reject_reason="cancelled_stale_entry",
                 timestamps={
@@ -300,62 +329,36 @@ class ExecutionService:
                 },
             )
 
-        filled_qty = self._as_float(current.filled_qty)
-        fill_price = self._as_float(current.filled_avg_price)
-
-        tp_price = self._quantize_price(cmd.tp, mode="nearest")
-        sl_price = self._quantize_price(cmd.sl, mode="nearest")
-
-        oco_request = LimitOrderRequest(
-            symbol=cmd.symbol,
-            qty=filled_qty,
-            side=self._exit_side(cmd.side),
-            time_in_force=TimeInForce.DAY,
-            order_class=OrderClass.OCO,
-            take_profit=TakeProfitRequest(limit_price=tp_price),
-            stop_loss=StopLossRequest(stop_price=sl_price),
-            client_order_id=f"{cmd.client_order_id}-oco",
-        )
-
-        try:
-            oco_order = self.trading_client.submit_order(oco_request)
-        except Exception as exc:
-            return ExecutionReport(
-                intent_id=cmd.intent_id,
-                broker_order_id=str(current.id),
-                entry_order_id=str(current.id),
-                status="Not_Executed",
-                reject_reason=f"API_ERROR_OCO_SUBMIT:{exc}",
-                filled_qty=filled_qty,
-                avg_fill_price=fill_price if fill_price > 0 else None,
-                timestamps={
-                    "submitted_at": now.isoformat(),
-                    "filled_at": current.filled_at.isoformat() if current.filled_at else utc_now().isoformat(),
-                    "completed_at": utc_now().isoformat(),
-                },
-            )
+        # Entry filled — TP/SL were submitted on fill via takeProfitOnFill/stopLossOnFill
+        oco_id = trade_id or str(uuid.uuid4())
+        oco_payload: dict[str, Any] = {
+            "trade_id": trade_id,
+            "take_profit_price": tp_price,
+            "stop_loss_price": sl_price,
+            "submitted_at": utc_now().isoformat(),
+        }
         self.state_store.record_order(
-            order_id=str(oco_order.id),
+            order_id=oco_id,
             intent_id=cmd.intent_id,
             client_order_id=f"{cmd.client_order_id}-oco",
             order_role="exit_oco",
-            status=str(oco_order.status),
-            payload=self._order_to_payload(oco_order),
-            broker_order_id=str(oco_order.id),
+            status="new",
+            payload=oco_payload,
+            broker_order_id=oco_id,
             submitted_at=utc_now(),
         )
 
         return ExecutionReport(
             intent_id=intent.intent_id,
-            broker_order_id=str(current.id),
-            entry_order_id=str(current.id),
-            oco_order_id=str(oco_order.id),
+            broker_order_id=entry_id,
+            entry_order_id=entry_id,
+            oco_order_id=oco_id,
             status="Executed",
             filled_qty=filled_qty,
             avg_fill_price=fill_price if fill_price > 0 else None,
             timestamps={
                 "submitted_at": now.isoformat(),
-                "filled_at": current.filled_at.isoformat() if current.filled_at else utc_now().isoformat(),
+                "filled_at": utc_now().isoformat(),
                 "oco_submitted_at": utc_now().isoformat(),
             },
         )
@@ -364,23 +367,56 @@ class ExecutionService:
         if self.trading_client is None:
             return {"status": "mock_flatten", "closed": 0}
 
-        response = self.trading_client.close_all_positions(cancel_orders=True)
-        return {
-            "status": "flatten_requested",
-            "closed": len(response) if isinstance(response, list) else 0,
-        }
+        account_id = os.environ.get("OANDA_ACCOUNT_ID", "")
+        instrument = "XAU_USD"
+        closed = 0
+        try:
+            # Try closing long units
+            try:
+                r_long = oanda_positions.PositionClose(
+                    account_id,
+                    instrument,
+                    data={"longUnits": "ALL"},
+                )
+                self.trading_client.request(r_long)
+                closed += 1
+            except Exception:
+                pass
+            # Try closing short units
+            try:
+                r_short = oanda_positions.PositionClose(
+                    account_id,
+                    instrument,
+                    data={"shortUnits": "ALL"},
+                )
+                self.trading_client.request(r_short)
+                closed += 1
+            except Exception:
+                pass
+        except Exception as exc:
+            return {"status": "flatten_error", "error": str(exc), "closed": closed}
+        return {"status": "flatten_requested", "closed": closed}
 
     def cancel_all_open_orders(self) -> dict[str, Any]:
         if self.trading_client is None:
             return {"status": "mock_cancel_orders", "cancelled": 0}
+        account_id = os.environ.get("OANDA_ACCOUNT_ID", "")
         try:
-            response = self.trading_client.cancel_orders()
-            return {
-                "status": "cancel_requested",
-                "cancelled": len(response) if isinstance(response, list) else 0,
-            }
+            r = oanda_orders.OrdersPending(account_id)
+            self.trading_client.request(r)
+            orders = r.response.get("orders", [])
+            cancelled = 0
+            for order in orders:
+                order_id = order.get("id")
+                if not order_id:
+                    continue
+                try:
+                    r_cancel = oanda_orders.OrderCancel(account_id, order_id)
+                    self.trading_client.request(r_cancel)
+                    cancelled += 1
+                except Exception:
+                    pass
+            return {"status": "cancel_requested", "cancelled": cancelled}
         except Exception as exc:
-            return {
-                "status": "cancel_failed",
-                "error": str(exc),
-            }
+            return {"status": "cancel_failed", "error": str(exc)}
+

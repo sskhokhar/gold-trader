@@ -60,7 +60,8 @@ class TestEventTrigger(unittest.TestCase):
 
     def test_open_warmup_blocks(self):
         bars = self._bars()
-        ts = datetime(2026, 2, 25, 9, 32, tzinfo=ZoneInfo("America/New_York"))
+        # Sunday 17:02 ET — within the 5-minute weekly open warmup window
+        ts = datetime(2026, 3, 1, 17, 2, tzinfo=ZoneInfo("America/New_York"))
         snapshot = build_feature_snapshot(
             bars,
             bid=200.0,
@@ -68,7 +69,7 @@ class TestEventTrigger(unittest.TestCase):
             timestamp=ts,
         )
         state = DailyState(
-            day="2026-02-25",
+            day="2026-03-01",
             day_start_equity=100000,
             equity_hwm=100000,
             current_equity=100000,
