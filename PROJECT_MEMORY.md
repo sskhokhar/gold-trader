@@ -1,6 +1,6 @@
 # Project Memory: XAUUSD Multi-Agent Scalping System
 
-Last updated: 2026-03-01
+Last updated: 2026-03-01 (Phase F)
 
 ## 1) Mission and Scope
 - Build a deterministic, event-driven XAUUSD scalping system with **dual trading modes**.
@@ -45,7 +45,24 @@ Last updated: 2026-03-01
 - Pre-market warmup/health gate with persisted warmup report.
 - Analyst model A/B benchmark harness with scored recommendation output.
 
-### Phase E: News-aware dual-mode trading (implemented)
+### Phase F: Math engine owns trade levels; LLM validates (implemented)
+- **Core principle**: Math tells you WHERE (price levels). LLM tells you WHETHER (go/no-go).
+- **Pipeline**: `Market Data → Trigger → Math Engine (gold_strategy.py) → LLM Validate → Risk → Execute`
+- **`gold_strategy.py`** wired into `_run_cycle()` as source of truth for entry/SL/TP:
+  - `analyze_gold(bars, last_price, timestamp)` called after trigger fires, before quota reservation.
+  - `TradeSetup` fields passed into agent inputs as `trade_setup_json`.
+  - New `has_valid_setup()` method returns `False` for `NO_SETUP` results.
+  - New `to_json()` method serializes the setup for LLM prompt embedding.
+- **No-setup early exit**: If math finds no valid setup, skip LLM entirely (save quota), record `skipped:no_math_setup`.
+- **Hard guardrail** in `main.py`: After LLM returns intent, code overrides entry/SL/TP with math-calculated values when LLM side matches math side. LLM cannot hallucinate price levels.
+- **`_build_snapshot()`** updated to return 3-tuple `(snapshot, bars, meta)` so raw OHLCV bars are available for `analyze_gold()`.
+- **Agent role change**: `strategy_composer` renamed to **Strategy Validator** role — decides WHETHER to take the math-proposed trade, never WHERE the levels are.
+- **Task change**: `compose_strategy_intent` task now instructs the agent to APPROVE (use exact math levels) or VETO (set `confidence=0.0`) the math-calculated `TradeSetup`.
+- **Sentiment task** (`analyze_market_sentiment`) now also receives `{trade_setup_json}` as context.
+- **`kickoff_strategy_only()`** (cached-analysis path) updated to include `{trade_setup_json}` in task description.
+- **Event telemetry** extended with: `trade_setup_type`, `trade_setup_confluence`, `llm_decision` (approved/vetoed).
+- **New tests**: `TestMathEngineGuardrail` class in `test_gold_strategy.py` — guardrail overrides LLM levels when sides match; no-override when sides differ; NO_SETUP → `has_valid_setup()` == False.
+
 - **Spike Mode**: Activated around high-impact economic events (NFP, CPI, FOMC, etc.).
   - 3-task pipeline: EventBriefing → Sentiment → StrategyIntent
   - `event_briefing_analyst` agent with `EventBriefingReport` schema
@@ -75,12 +92,18 @@ Last updated: 2026-03-01
 - `MarketStreamSensor` (WebSocket-first, health/staleness).
 - `EventTrigger` (`build_feature_snapshot` + `should_wake_ai` with trading_mode param).
 - `CalendarService` (economic calendar, YAML + HTTP, caching, `EconomicEvent`/`DailyCalendar`).
+- **`GoldStrategy` / `analyze_gold()`** — math engine, source of truth for entry/SL/TP:
+  - Called in `_run_cycle()` after trigger fires, before any LLM call.
+  - Returns `TradeSetup` with setup_type, side, entry_price, stop_loss, take_profit, confidence, confluence_score.
+  - No valid setup → skip LLM (save quota), record `skipped:no_math_setup`.
+  - `trade_setup_json` injected into all agent inputs.
 - `CrewAI`:
-  - Daily scalp pipeline (2-task): sentiment analysis → strategy intent
-  - Spike mode pipeline (3-task): event briefing → sentiment → strategy intent
+  - Daily scalp pipeline (2-task): sentiment analysis → strategy **validation**
+  - Spike mode pipeline (3-task): event briefing → sentiment → strategy **validation**
   - Agent: event_briefing_analyst (macro event analysis, `EventBriefingReport`)
-  - Agent: market_sentiment_analyst (microstructure analysis)
-  - Agent: strategy_composer (trade intent)
+  - Agent: market_sentiment_analyst (microstructure analysis; also sees `trade_setup_json`)
+  - Agent: strategy_composer / **Strategy Validator** (validate math trade, cannot change price levels)
+- Hard guardrail in `main.py`: overwrites LLM-returned entry/SL/TP with math values when sides match.
 - `RiskEngine` deterministic pre-trade checks + dollar P&L targets.
 - `ExecutionService` deterministic order workflow.
 - `StateStore` SQLite WAL system of record.
@@ -98,7 +121,17 @@ Last updated: 2026-03-01
   - Runtime orchestration, dual-mode detection, spike confirmation delay.
   - `determine_trading_mode()`: spike vs daily_scalp based on calendar events.
   - Mode-specific risk parameters and pipeline selection.
+  - `_build_snapshot()` returns `(snapshot, bars, meta)` 3-tuple (bars passed to math engine).
+  - Math engine call: `analyze_gold(bars, last_price)` before quota check; skips LLM if no valid setup.
+  - Hard guardrail: overwrites LLM entry/SL/TP with math values after LLM returns intent.
   - CLI commands: `run_auto` (event-aware scheduler).
+- `src/gold_trading_one_trade_per_day/gold_strategy.py`
+  - **Source of truth for entry/SL/TP.** Previously unused in main pipeline, now wired in.
+  - `analyze_gold(bars, last_price, timestamp)` — full analysis pipeline.
+  - `TradeSetup` dataclass with `has_valid_setup()` and `to_json()` methods.
+  - `detect_setup()` — confluence-scored setup detection (trend, breakout, VWAP bounce, pivot bounce).
+  - `compute_atr_stops()` — ATR-based SL/TP calculation.
+  - Session detection: Asian / London / NY / London-NY overlap / off-hours.
 - `src/gold_trading_one_trade_per_day/calendar_service.py`
   - Economic calendar fetching and caching.
   - `CalendarService`, `EconomicEvent`, `DailyCalendar`.
@@ -110,7 +143,7 @@ Last updated: 2026-03-01
   - Agent definitions and task guardrails.
   - Hybrid LLM routing integration.
   - `kickoff_spike_mode()` for 3-task spike pipeline.
-  - `kickoff_strategy_only` for cached analysis path.
+  - `kickoff_strategy_only()` for cached analysis path (includes `{trade_setup_json}`).
 - `src/gold_trading_one_trade_per_day/event_trigger.py`
   - `should_wake_ai()` with `trading_mode` parameter.
   - Spike mode: macro events are encouraged (not blocked).
@@ -320,11 +353,15 @@ Useful examples:
   - `AUTO_SPIKE_CYCLE_INTERVAL_SEC` (default: 10)
   - `AUTO_IDLE_INTERVAL_SEC` (default: 120)
   - `AUTO_MODE` (default: shadow)
+- Math engine (gold_strategy.py):
+  - `MIN_SESSION_QUALITY` (default: 0.3) — minimum session quality score to consider any setup (0.0=off_hours, 0.3=asian, 0.6=ny, 0.8=london, 1.0=overlap)
+  - `MIN_RISK_REWARD_RATIO` (default: 1.5) — minimum R:R ratio for a setup to be considered valid; below this threshold returns NO_SETUP
 
 ## 12) Tests and Current Status
-- Test suite: `130` tests (as of Phase E).
+- Test suite: `~155` tests (as of Phase F).
 - Latest result: all passing.
-- New test files:
+- New/updated test files:
+  - `tests/test_gold_strategy.py` — 25 tests covering session detection, ATR stops, position sizing, setup detection, `analyze_gold`, `has_valid_setup`, `to_json`, and `TestMathEngineGuardrail` (guardrail enforcement)
   - `tests/test_calendar_service.py` — calendar parsing, caching, filtering
   - `tests/test_trading_modes.py` — mode detection, dollar targets, event briefing schema
 - Existing coverage maintained for:
@@ -346,6 +383,7 @@ Useful examples:
 - `stale_data` in paper mode: expected fail-closed when stream and REST are unavailable.
 - `spread_too_wide` skips: expected protection gate.
 - `macro_event_window` skips: only in `daily_scalp` mode; spike mode continues trading.
+- `no_math_setup` skips: math engine found no high-probability setup (low confluence, poor session, bad R:R). LLM call was skipped to save quota.
 
 ## 14) Known Issues and Practical Notes
 - Ollama `0.17.0` was installed successfully.
@@ -356,6 +394,10 @@ Useful examples:
 - Running outside RTH will correctly skip events.
 - Spike confirmation delay (`SPIKE_CONFIRMATION_DELAY_SEC=30`) can be set to 0 in testing.
 - Calendar service gracefully degrades to empty calendar on API failure (falls back to daily scalp mode).
+- Math engine (`analyze_gold`) requires at least 50 bars for reliable indicator output. Uses ATR multipliers tuned for XAU/USD (~$2,900 price level).
+- `MIN_SESSION_QUALITY` env var gates the math engine (default: `0.3`). Sessions below this threshold return `NO_SETUP`.
+- `MIN_RISK_REWARD_RATIO` env var gates trade setup validity (default: `1.5`). Setups below this R:R return `NO_SETUP`.
+- When LLM side differs from math side (LLM vetoed direction), hard guardrail does **not** override levels — the LLM's chosen side/levels are used (this handles the veto case correctly).
 
 ## 15) Security and Ops Note
 - `.env` currently contains active broker/model secrets in this environment.
@@ -372,4 +414,7 @@ Useful examples:
 - Promote to paper/live only after stable skip/execute patterns and historian metrics remain healthy.
 - To use `run_auto` for continuous trading: `python -m gold_trading_one_trade_per_day.main run_auto shadow`
 - Set `DAILY_PROFIT_TARGET_USD=10` and `DAILY_LOSS_LIMIT_USD=5` for the "$10 profit, $5 loss" daily rule.
+- Monitor `trade_setup_type` and `trade_setup_confluence` in telemetry to understand how often the math engine finds setups vs. skipping.
+- Monitor `llm_decision` (approved vs. vetoed) to evaluate LLM validation quality over time.
+- Tune `MIN_SESSION_QUALITY` and `MIN_RISK_REWARD_RATIO` if too many `no_math_setup` skips occur.
 
