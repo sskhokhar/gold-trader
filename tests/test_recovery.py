@@ -16,11 +16,11 @@ class TestRecovery(unittest.TestCase):
             store = StateStore(f"{d}/state.db")
             now = datetime.now(tz=ZoneInfo("America/New_York"))
             stale = StrategyIntent(
-                symbol="GLD",
+                symbol="XAU_USD",
                 side=Side.BUY,
-                entry_price=200,
-                sl=199,
-                tp=202,
+                entry_price=2900,
+                sl=2890,
+                tp=2915,
                 qty_hint=10,
                 confidence=0.7,
                 regime=Regime.TREND,

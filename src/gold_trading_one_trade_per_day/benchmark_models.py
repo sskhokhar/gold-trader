@@ -49,19 +49,19 @@ def default_benchmark_fixtures() -> list[BenchmarkFixture]:
     from gold_trading_one_trade_per_day.event_trigger import build_feature_snapshot
 
     now = datetime.now(tz=NY_TZ).replace(hour=10, minute=15, second=0, microsecond=0)
-    bars_trend = _build_fixture_bars(base=200.0, jump=1.4, volume_base=10_000, volume_last=65_000)
-    bars_range = _build_fixture_bars(base=200.0, jump=0.08, volume_base=10_000, volume_last=9_500)
-    bars_high_vol = _build_fixture_bars(base=200.0, jump=2.1, volume_base=10_000, volume_last=40_000)
+    bars_trend = _build_fixture_bars(base=2900.0, jump=14.0, volume_base=10_000, volume_last=65_000)
+    bars_range = _build_fixture_bars(base=2900.0, jump=0.8, volume_base=10_000, volume_last=9_500)
+    bars_high_vol = _build_fixture_bars(base=2900.0, jump=21.0, volume_base=10_000, volume_last=40_000)
 
     fixtures = [
         BenchmarkFixture(
             name="trend_breakout",
             snapshot=build_feature_snapshot(
                 bars=bars_trend,
-                bid=200.35,
-                ask=200.36,
+                bid=2900.35,
+                ask=2900.85,
                 timestamp=now,
-                symbol="GLD",
+                symbol="XAU_USD",
             ),
             expected_regime=Regime.TREND,
         ),
@@ -69,10 +69,10 @@ def default_benchmark_fixtures() -> list[BenchmarkFixture]:
             name="range_flat",
             snapshot=build_feature_snapshot(
                 bars=bars_range,
-                bid=200.01,
-                ask=200.02,
+                bid=2900.01,
+                ask=2900.51,
                 timestamp=now,
-                symbol="GLD",
+                symbol="XAU_USD",
             ),
             expected_regime=Regime.RANGE,
         ),
@@ -80,10 +80,10 @@ def default_benchmark_fixtures() -> list[BenchmarkFixture]:
             name="high_volatility",
             snapshot=build_feature_snapshot(
                 bars=bars_high_vol,
-                bid=201.4,
-                ask=201.42,
+                bid=2901.4,
+                ask=2901.9,
                 timestamp=now,
-                symbol="GLD",
+                symbol="XAU_USD",
             ),
             expected_regime=Regime.HIGH_VOL,
         ),
@@ -105,7 +105,7 @@ def _run_analyst_once(model_name: str, snapshot_json: str) -> tuple[MarketSentim
     analyst = Agent(
         role="Market Sentiment Analyst",
         goal="Produce only valid MarketSentimentReport JSON from a FeatureSnapshot.",
-        backstory="You are a deterministic analyst for GLD intraday setups.",
+        backstory="You are a deterministic analyst for XAU_USD (gold spot) intraday setups.",
         allow_delegation=False,
         reasoning=False,
         max_iter=2,
@@ -196,7 +196,7 @@ def run_model_benchmark(
                     continue
                 schema_passes += 1
                 sentiment_by_fixture[fixture.name].append(float(report.sentiment_score))
-                if report.symbol != "GLD" or report.regime != fixture.expected_regime:
+                if report.symbol != "XAU_USD" or report.regime != fixture.expected_regime:
                     invalid_claims += 1
 
         consistency_scores = []

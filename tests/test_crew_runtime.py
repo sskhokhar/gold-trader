@@ -43,7 +43,7 @@ class TestCrewRuntime(unittest.TestCase):
         stale = datetime(2023, 2, 20, 14, 30, tzinfo=timezone.utc)
         payload = StrategyIntent(
             intent_id="intent-stale-001",
-            symbol="GLD",
+            symbol="XAU_USD",
             side=Side.BUY,
             entry_type=EntryType.MARKETABLE_LIMIT,
             entry_price=200.0,
@@ -67,7 +67,7 @@ class TestCrewRuntime(unittest.TestCase):
         stale = datetime(2023, 2, 20, 14, 30, tzinfo=timezone.utc)
         intent = StrategyIntent(
             intent_id="intent-normalize-001",
-            symbol="GLD",
+            symbol="XAU_USD",
             side=Side.SELL,
             entry_type=EntryType.MARKETABLE_LIMIT,
             entry_price=200.0,
@@ -94,7 +94,7 @@ class TestCrewRuntime(unittest.TestCase):
         generated = now - timedelta(seconds=70)
         payload = StrategyIntent(
             intent_id="intent-past-expiry-001",
-            symbol="GLD",
+            symbol="XAU_USD",
             side=Side.BUY,
             entry_type=EntryType.MARKETABLE_LIMIT,
             entry_price=200.0,
@@ -117,7 +117,7 @@ class TestCrewRuntime(unittest.TestCase):
         now = datetime.now(timezone.utc)
         payload = StrategyIntent(
             intent_id="intent-long-ttl-001",
-            symbol="GLD",
+            symbol="XAU_USD",
             side=Side.BUY,
             entry_type=EntryType.MARKETABLE_LIMIT,
             entry_price=200.0,

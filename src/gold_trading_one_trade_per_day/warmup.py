@@ -47,38 +47,38 @@ def run_warmup(
     bars = None
     bid = ask = None
     try:
-        bars = fetch_recent_bars(symbol="GLD", lookback_minutes=30, allow_mock=allow_mock)
-        bid, ask = fetch_latest_quote(symbol="GLD", allow_mock=allow_mock)
+        bars = fetch_recent_bars(symbol="XAU_USD", lookback_minutes=30, allow_mock=allow_mock)
+        bid, ask = fetch_latest_quote(symbol="XAU_USD", allow_mock=allow_mock)
         data_ok = bars is not None and len(bars) >= 5 and bid is not None and ask is not None
     except Exception as exc:
-        checks["alpaca_rest"] = {
+        checks["oanda_rest"] = {
             "passed": False,
             "error": str(exc),
             "has_credentials": has_real_credentials(),
         }
-        reasons.append("alpaca_rest_unavailable")
-    if "alpaca_rest" not in checks:
-        checks["alpaca_rest"] = {
+        reasons.append("oanda_rest_unavailable")
+    if "oanda_rest" not in checks:
+        checks["oanda_rest"] = {
             "passed": data_ok,
             "bars_count": int(len(bars)) if bars is not None else 0,
             "spread": float(max((ask or 0) - (bid or 0), 0.0)),
             "has_credentials": has_real_credentials(),
         }
         if not data_ok:
-            reasons.append("alpaca_rest_unavailable")
+            reasons.append("oanda_rest_unavailable")
 
-    sensor = MarketStreamSensor(symbol="GLD")
+    sensor = MarketStreamSensor(symbol="XAU_USD")
     stream_started = sensor.start()
     health = sensor.health()
-    checks["alpaca_stream"] = {
+    checks["oanda_stream"] = {
         "passed": bool(stream_started or health.thread_alive),
         "enabled": sensor.enabled,
         "started": stream_started,
         "connected": health.connected,
         "thread_alive": health.thread_alive,
     }
-    if not checks["alpaca_stream"]["passed"]:
-        reasons.append("alpaca_stream_unavailable")
+    if not checks["oanda_stream"]["passed"]:
+        reasons.append("oanda_stream_unavailable")
     sensor.stop()
 
     quota_guard = QuotaGuard(store)
@@ -117,10 +117,10 @@ def run_warmup(
                 ask=float(ask),
                 macro_proxies=macro,
                 timestamp=ts,
-                symbol="GLD",
+                symbol="XAU_USD",
             )
             report = MarketSentimentReport(
-                symbol="GLD",
+                symbol="XAU_USD",
                 generated_at=ts,
                 regime=snapshot.regime,
                 greed_score=snapshot.greed_score,

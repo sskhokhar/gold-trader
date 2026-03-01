@@ -1,4 +1,4 @@
-"""GLD event-driven multi-agent scalping package."""
+"""XAUUSD event-driven multi-agent scalping package."""
 
 from gold_trading_one_trade_per_day.schemas import (
     DataSource,

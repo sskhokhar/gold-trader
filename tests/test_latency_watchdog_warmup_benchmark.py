@@ -47,7 +47,7 @@ class _FakeHealth:
 
 
 class _FakeSensor:
-    def __init__(self, symbol: str = "GLD"):
+    def __init__(self, symbol: str = "XAU_USD"):
         self.symbol = symbol
         self.enabled = True
 
@@ -108,11 +108,11 @@ class TestLatencyWatchdogWarmupBenchmark(unittest.TestCase):
     def test_watchdog_stuck_entry_halts_and_resume(self):
         now = datetime(2026, 2, 25, 10, 0, tzinfo=ZoneInfo("America/New_York"))
         intent = StrategyIntent(
-            symbol="GLD",
+            symbol="XAU_USD",
             side=Side.BUY,
-            entry_price=200.0,
-            sl=199.0,
-            tp=201.5,
+            entry_price=2900.0,
+            sl=2890.0,
+            tp=2915.0,
             qty_hint=10,
             confidence=0.8,
             regime=Regime.TREND,
@@ -155,10 +155,10 @@ class TestLatencyWatchdogWarmupBenchmark(unittest.TestCase):
         idx = pd.date_range(end=now, periods=20, freq="1min")
         bars = pd.DataFrame(
             {
-                "open": [200.0] * 20,
-                "high": [200.3] * 20,
-                "low": [199.9] * 20,
-                "close": [200.1] * 20,
+                "open": [2900.0] * 20,
+                "high": [2903.0] * 20,
+                "low": [2899.0] * 20,
+                "close": [2901.0] * 20,
                 "volume": [10000] * 20,
             },
             index=idx,
@@ -167,7 +167,7 @@ class TestLatencyWatchdogWarmupBenchmark(unittest.TestCase):
         with patch("gold_trading_one_trade_per_day.warmup.is_local_model_available", return_value=True), patch(
             "gold_trading_one_trade_per_day.warmup.fetch_recent_bars", return_value=bars
         ), patch(
-            "gold_trading_one_trade_per_day.warmup.fetch_latest_quote", return_value=(200.0, 200.01)
+            "gold_trading_one_trade_per_day.warmup.fetch_latest_quote", return_value=(2900.0, 2900.50)
         ), patch(
             "gold_trading_one_trade_per_day.warmup.fetch_macro_proxy_returns",
             return_value={"SPY": 0.0, "VXX": 0.0, "UUP": 0.0, "TLT": 0.0},

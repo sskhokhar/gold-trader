@@ -16,11 +16,11 @@ class TestSchemasAndRisk(unittest.TestCase):
 
     def test_strategy_intent_buy_validation(self):
         intent = StrategyIntent(
-            symbol="GLD",
+            symbol="XAU_USD",
             side=Side.BUY,
-            entry_price=200.0,
-            sl=199.0,
-            tp=202.0,
+            entry_price=2900.0,
+            sl=2890.0,
+            tp=2915.0,
             qty_hint=10,
             confidence=0.7,
             regime=Regime.TREND,
@@ -34,11 +34,11 @@ class TestSchemasAndRisk(unittest.TestCase):
     def test_strategy_intent_buy_invalid_levels(self):
         with self.assertRaises(ValueError):
             StrategyIntent(
-                symbol="GLD",
+                symbol="XAU_USD",
                 side=Side.BUY,
-                entry_price=200.0,
-                sl=201.0,
-                tp=202.0,
+                entry_price=2900.0,
+                sl=2905.0,
+                tp=2910.0,
                 qty_hint=10,
                 confidence=0.7,
                 regime=Regime.TREND,

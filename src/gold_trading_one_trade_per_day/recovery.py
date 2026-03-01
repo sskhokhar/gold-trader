@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from typing import Any
 
-from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import QueryOrderStatus
-from alpaca.trading.requests import GetOrdersRequest
-
 from gold_trading_one_trade_per_day.schemas import IntentState
 from gold_trading_one_trade_per_day.state_store import StateStore
+
+try:
+    import oandapyV20.endpoints.orders as oanda_orders
+    _OANDA_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _OANDA_AVAILABLE = False
 
 
 def utc_now() -> datetime:
@@ -17,7 +20,7 @@ def utc_now() -> datetime:
 
 def reconcile_startup(
     state_store: StateStore,
-    trading_client: TradingClient | None,
+    trading_client: Any,
     day_state: Any,
 ) -> dict[str, int]:
     summary = {
@@ -53,12 +56,15 @@ def reconcile_startup(
             summary["halted_intents"] += 1
 
     if trading_client is not None:
+        account_id = os.environ.get("OANDA_ACCOUNT_ID", "")
         try:
-            open_orders = trading_client.get_orders(
-                GetOrdersRequest(status=QueryOrderStatus.OPEN)
-            )
-            summary["open_orders_seen"] = len(open_orders)
+            if _OANDA_AVAILABLE:
+                r = oanda_orders.OrdersPending(account_id)
+                trading_client.request(r)
+                orders = r.response.get("orders", [])
+                summary["open_orders_seen"] = len(orders)
         except Exception:
             summary["open_orders_seen"] = -1
 
     return summary
+

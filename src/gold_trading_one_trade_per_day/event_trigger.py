@@ -12,17 +12,29 @@ NY_TZ = ZoneInfo("America/New_York")
 
 
 def is_rth(ts: datetime) -> bool:
+    """Return True if the timestamp is within XAU_USD trading hours (24/5, Mon–Fri).
+
+    XAU_USD is closed from Friday 17:00 ET to Sunday 17:00 ET.
+    """
     local = ts.astimezone(NY_TZ)
-    start = time(9, 30)
-    end = time(16, 0)
-    return local.weekday() < 5 and start <= local.time() <= end
+    weekday = local.weekday()  # 0=Mon … 4=Fri, 5=Sat, 6=Sun
+    t = local.time()
+    close_time = time(17, 0)
+    if weekday == 5:  # Saturday — always closed
+        return False
+    if weekday == 6:  # Sunday — open after 17:00 ET
+        return t >= close_time
+    if weekday == 4:  # Friday — closed after 17:00 ET
+        return t < close_time
+    return True  # Monday–Thursday always open
 
 
 def in_open_warmup(ts: datetime, warmup_minutes: int) -> bool:
+    """Warmup window after the weekly Sunday market open (17:00 ET)."""
     local = ts.astimezone(NY_TZ)
-    if local.weekday() >= 5:
+    if local.weekday() != 6:
         return False
-    start = local.replace(hour=9, minute=30, second=0, microsecond=0)
+    start = local.replace(hour=17, minute=0, second=0, microsecond=0)
     end = start + timedelta(minutes=warmup_minutes)
     return start <= local < end
 
@@ -33,7 +45,7 @@ def _calc_regime(
     volume_spike_ratio: float,
     vwap_displacement_pct: float,
 ) -> Regime:
-    if spread > 0.02:
+    if spread > 0.50:
         return Regime.LOW_LIQUIDITY
     if bar_range_pct >= 0.006:
         return Regime.HIGH_VOL
@@ -50,7 +62,7 @@ def build_feature_snapshot(
     ask: float,
     macro_proxies: dict[str, float] | None = None,
     timestamp: datetime | None = None,
-    symbol: str = "GLD",
+    symbol: str = "XAU_USD",
     data_source: DataSource = DataSource.REST_FALLBACK,
     data_age_sec: float = 0.0,
 ) -> FeatureSnapshot:
@@ -135,7 +147,7 @@ def should_wake_ai(
     min_volume_spike_ratio: float = 3.0,
     min_vwap_displacement_pct: float = 0.0015,
     min_bar_range_expansion: float = 1.2,
-    max_spread: float = 0.02,
+    max_spread: float = 0.50,
     open_warmup_minutes: int | None = None,
     macro_event_active: bool = False,
     macro_event_label: str | None = None,
@@ -174,3 +186,4 @@ def should_wake_ai(
     if snapshot.bar_range_expansion_ratio < min_bar_range_expansion:
         return False, "range_not_expanded", context
     return True, "triggered", context
+

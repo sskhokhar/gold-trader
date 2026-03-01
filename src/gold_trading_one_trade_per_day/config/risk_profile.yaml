@@ -5,6 +5,8 @@ daily_loss_hard_lock_pct: -0.015
 max_entries_per_day: 8
 cooldown_after_close_sec: 180
 max_consecutive_losses: 3
-max_spread: 0.02
+# OANDA XAU_USD: typical spread is $0.30–$2.00; 0.50 is a reasonable filter threshold
+max_spread: 0.50
 intent_ttl_seconds: 45
-no_new_entries_after: "15:30"
+# XAU_USD trades 24/5; no NYSE cutoff applies — using 23:00 UTC as a safe end-of-day boundary
+no_new_entries_after: "23:00"

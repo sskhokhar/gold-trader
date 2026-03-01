@@ -33,7 +33,7 @@ class RiskConfig:
     max_entries_per_day: int = 8
     cooldown_after_close_sec: int = 180
     max_consecutive_losses: int = 3
-    max_spread: float = 0.02
+    max_spread: float = 0.50
     intent_ttl_seconds: int = 45
     no_new_entries_after: time = time(15, 30)
 
@@ -262,7 +262,7 @@ class RiskEngine:
 
         return ExecutionCommand(
             intent_id=intent.intent_id,
-            client_order_id=f"gld-{intent.intent_id[:8]}",
+            client_order_id=f"xau-{intent.intent_id[:8]}",
             cancel_after_sec=intent.cancel_after_sec,
             max_slippage_bps=max_slippage_bps,
             risk_signature=risk_signature,

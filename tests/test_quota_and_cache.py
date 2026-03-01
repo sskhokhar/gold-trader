@@ -70,7 +70,7 @@ class TestQuotaAndCache(unittest.TestCase):
             data_age_sec=1.0,
         )
         report = MarketSentimentReport(
-            symbol="GLD",
+            symbol="XAU_USD",
             generated_at=datetime.now(tz=ZoneInfo("America/New_York")),
             regime=Regime.TREND,
             greed_score=60,

@@ -29,11 +29,11 @@ class TestStateStoreAndExecution(unittest.TestCase):
     def test_intent_transition_and_mock_execution(self):
         now = datetime.now(tz=ZoneInfo("America/New_York"))
         intent = StrategyIntent(
-            symbol="GLD",
+            symbol="XAU_USD",
             side=Side.BUY,
-            entry_price=200,
-            sl=199,
-            tp=202,
+            entry_price=2900,
+            sl=2890,
+            tp=2915,
             qty_hint=10,
             confidence=0.8,
             regime=Regime.TREND,
@@ -61,16 +61,16 @@ class TestStateStoreAndExecution(unittest.TestCase):
 
         cmd = ExecutionCommand(
             intent_id=intent.intent_id,
-            client_order_id="gld-test-001",
+            client_order_id="xau-test-001",
             cancel_after_sec=30,
             max_slippage_bps=20,
             risk_signature="abcdef123456",
-            symbol="GLD",
+            symbol="XAU_USD",
             side=Side.BUY,
             qty=1,
-            entry_limit_price=200,
-            sl=199,
-            tp=202,
+            entry_limit_price=2900,
+            sl=2890,
+            tp=2915,
         )
         service = ExecutionService(state_store=self.store, trading_client=None)
         report = service.execute(ExecutionContext(intent=intent, command=cmd))
@@ -80,7 +80,7 @@ class TestStateStoreAndExecution(unittest.TestCase):
         day = datetime.now(tz=ZoneInfo("UTC")).date().isoformat()
         self.store.record_event(
             event_id="evt-1",
-            symbol="GLD",
+            symbol="XAU_USD",
             snapshot={"skip_reason_code": None},
         )
         self.store.update_event(
@@ -100,11 +100,11 @@ class TestStateStoreAndExecution(unittest.TestCase):
 
         now = datetime.now(tz=ZoneInfo("America/New_York"))
         intent = StrategyIntent(
-            symbol="GLD",
+            symbol="XAU_USD",
             side=Side.BUY,
-            entry_price=123.45,
-            sl=122.5,
-            tp=124.0,
+            entry_price=2900.00,
+            sl=2890.50,
+            tp=2915.00,
             qty_hint=10,
             confidence=0.8,
             regime=Regime.TREND,
@@ -115,16 +115,16 @@ class TestStateStoreAndExecution(unittest.TestCase):
         )
         cmd = ExecutionCommand(
             intent_id=intent.intent_id,
-            client_order_id="gld-test-live-001",
+            client_order_id="xau-test-live-001",
             cancel_after_sec=30,
             max_slippage_bps=20,
             risk_signature="abcdef123456",
-            symbol="GLD",
+            symbol="XAU_USD",
             side=Side.BUY,
             qty=1,
-            entry_limit_price=123.45,
-            sl=122.5,
-            tp=124.0,
+            entry_limit_price=2900.00,
+            sl=2890.50,
+            tp=2915.00,
         )
         service = ExecutionService(state_store=self.store, trading_client=DummyClient())
         report = service.execute(ExecutionContext(intent=intent, command=cmd))
@@ -138,11 +138,11 @@ class TestStateStoreAndExecution(unittest.TestCase):
     def test_list_open_entry_orders_excludes_enum_canceled_status(self):
         now = datetime.now(tz=ZoneInfo("America/New_York"))
         intent = StrategyIntent(
-            symbol="GLD",
+            symbol="XAU_USD",
             side=Side.BUY,
-            entry_price=200,
-            sl=199,
-            tp=202,
+            entry_price=2900,
+            sl=2890,
+            tp=2915,
             qty_hint=10,
             confidence=0.8,
             regime=Regime.TREND,
